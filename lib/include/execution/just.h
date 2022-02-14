@@ -12,7 +12,7 @@ namespace NJust {
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts>
-using TValues = std::tuple<std::remove_reference_t<Ts>...>;
+using TTuple = std::tuple<std::decay_t<Ts>...>;
 
 template <typename R, typename T>
 struct TOp
@@ -30,7 +30,10 @@ struct TOp
     {
         std::apply(
             [this] (auto&& ... values) {
-                std::move(Receiver).OnSuccess(std::move(values)...);
+                NExecution::Success(
+                    std::move(Receiver),
+                    std::move(values)...
+                );
             },
             std::move(Values)
         );
@@ -42,7 +45,7 @@ struct TOp
 template <typename ... Ts>
 struct TSender
 {
-    TValues<Ts...> Values;
+    TTuple<Ts...> Values;
 
     template <typename ... Us>
     explicit TSender(Us&& ... values)
@@ -52,7 +55,7 @@ struct TSender
     template <typename R>
     auto Connect(R&& receiver)
     {
-        return TOp<R, TValues<Ts...>>{
+        return TOp<R, TTuple<Ts...>>{
             std::forward<R>(receiver),
             std::move(Values)
         };
@@ -65,15 +68,15 @@ template <typename ... Ts>
 struct TTraits
 {
     template <typename R>
-    using TConnect = TOp<R, TValues<Ts...>>;
+    using TConnect = TOp<R, TTuple<Ts...>>;
 
     template <typename R>
-    using TSuccess = TTypeList<
+    using TValues = TTypeList<
         TSignature<Ts...>
     >;
 
     template <typename R>
-    using TFailure = TTypeList<>;
+    using TErrors = TTypeList<>;
 };
 
 }   // namespace NJust

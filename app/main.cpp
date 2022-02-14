@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <string>
+#include <memory>
 
 using namespace std::string_literals;
 using namespace NExecution;

@@ -4,6 +4,7 @@
 #include "type_list.h"
 #include "variant.h"
 
+#include <functional>
 #include <type_traits>
 
 namespace NExecution {
@@ -12,7 +13,7 @@ namespace NLetValue {
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-struct TStagingReceiver
+struct TPredReceiver
 {
     T* Op;
 
@@ -22,10 +23,10 @@ struct TStagingReceiver
         Op->OnSuccess(std::forward<Ts>(values)...);
     }
 
-    template <typename ... Ts>
-    void OnFailure(Ts&& ... errors)
+    template <typename E>
+    void OnFailure(E&& error)
     {
-        Op->OnFailure(std::forward<Ts>(errors)...);
+        Op->OnFailure(std::forward<E>(error));
     }
 
     void OnCancel()
@@ -39,26 +40,26 @@ struct TStagingReceiver
 template <typename P, typename F, typename R>
 struct TOp
 {
-    using TSelf = TOp<P, F, R>;
+    using TPredReceiver = TPredReceiver<TOp<P, F, R>>;
 
-    F Factory;
-    R Receiver;
+    using TSuccessors = NTL::TMap<
+        TInvokeResult<F>,
+        TSenderValues<P, TPredReceiver>
+    >;
 
-    TVariant<
-        TAppend<
+    // List of possible types
+    using TState = TVariant<
+        NTL::TConcat<
             TTypeList<
                 P,
-                TConnect<P, TStagingReceiver<TSelf>>
+                TConnectResult<P, TPredReceiver>
             >,
-            TApply<
-                TConnectOp<R>,
-                TApply<
-                    TInvokeResultOp<F>,
-                    TSuccess<P, TStagingReceiver<TSelf>>
-                >
-            >
-        >
-    > State;
+            NTL::TMap<TConnectResult<R>, TSuccessors>
+        >>;
+
+    TState State;
+    F Factory;
+    R Receiver;
 
     template <typename U>
     TOp(P&& predecessor, F&& factory, U&& receiver)
@@ -69,24 +70,34 @@ struct TOp
 
     void Start()
     {
-        auto& p = std::get<0>(State);
-        State = p.Connect(TStagingReceiver<TSelf>{this});
-        std::get<1>(State).Start();
+        auto op = NExecution::Connect(
+            State.template Extract<P>(),
+            TPredReceiver{this}
+        );
+        op.Start();
+
+        State.Replace(std::move(op));
     }
 
     template <typename ... Ts>
     void OnSuccess(Ts&& ... values)
     {
-        auto s = std::invoke(std::move(Factory), std::forward<Ts>(values)...);
-        auto op = s.Connect(std::move(Receiver));
+        auto op = NExecution::Connect(
+            std::invoke(std::move(Factory), std::forward<Ts>(values)...),
+            std::move(Receiver)
+        );
         op.Start();
-        State = std::move(op);
+
+        State.Replace(std::move(op));
     }
 
-    template <typename ... Ts>
-    void OnFailure(Ts&& ... errors)
+    template <typename E>
+    void OnFailure(E&& error)
     {
-        std::move(Receiver).OnFailure(std::forward<Ts>(errors)...);
+        NExecution::Failure(
+            std::move(Receiver),
+            std::forward<E>(error)
+        );
     }
 
     void OnCancel()
@@ -148,26 +159,25 @@ template <typename P, typename F>
 struct TTraits
 {
     template <typename R>
-    using TConnect = TOp<P, F, R>;
+    using TConnect = TPredReceiver<TOp<P, F, R>>;
 
     template <typename R>
-    using TSuccess = TFlat<
-        TApply<
-            TSuccessOp<R>,
-            TApply<
-                TInvokeResultOp<F>,
-                TSuccess<P, TStagingReceiver<TConnect<R>>>
-            >
-        >
+    using TSuccessors = NTL::TMap<
+        TInvokeResult<F>,
+        TSenderValues<P, TConnect<R>>
     >;
 
     template <typename R>
-    using TFailure = TAppend<
-        NExecution::TFailure<P, R>,
-        TApply<
-            TFailureOp<R>,
-            NExecution::TFailure<P, TStagingReceiver<TConnect<R>>>
-        >
+    using TValues = NTL::TFlat<
+        NTL::TMap<TSenderValues<R>, TSuccessors<R>>
+    >;
+
+    template <typename R>
+    using TErrors = NTL::TConcat<
+        // Fails on predecessor
+        TSenderErrors<P, TConnect<R>>,
+        // Fails on successor
+        NTL::TMap<TSenderErrors<R>, TSuccessors<R>>
     >;
 };
 

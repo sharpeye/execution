@@ -7,51 +7,29 @@ namespace NExecution {
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts>
-struct TTypeList {};
+struct TTypeList;
 
-namespace NTypeList
-{
+namespace NTL {
+namespace NDetails {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename TL1, typename TL2>
-struct TAppendImpl;
+struct TConcat;
 
 template <typename ... Ts1, typename ... Ts2>
-struct TAppendImpl<TTypeList<Ts1...>, TTypeList<Ts2...>>
+struct TConcat<TTypeList<Ts1...>, TTypeList<Ts2...>>
 {
     using TType = TTypeList<Ts1..., Ts2...>;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename TL>
-struct THeadImpl;
-
-template <typename H, typename ... Ts>
-struct THeadImpl<TTypeList<H, Ts...>>
-{
-    using TType = H;
-};
-
-///////////////////////////////////////////////////////////////////////////////
-
-template <typename TL>
-struct TTailImpl;
-
-template <typename H, typename ... Ts>
-struct TTailImpl<TTypeList<H, Ts...>>
-{
-    using TType = TTypeList<Ts...>;
-};
-
-///////////////////////////////////////////////////////////////////////////////
-
 template <typename F, typename TL>
-struct TApplyImpl;
+struct TMap;
 
 template <typename F, typename ... Ts>
-struct TApplyImpl<F, TTypeList<Ts...>>
+struct TMap<F, TTypeList<Ts...>>
 {
     using TType = TTypeList<typename F::template TOp<Ts>...>;
 };
@@ -59,37 +37,84 @@ struct TApplyImpl<F, TTypeList<Ts...>>
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename TL>
-struct TFlatImpl;
+struct TFlat;
 
 template <typename H, typename ... Ts>
-struct TFlatImpl<TTypeList<H, Ts...>>
+struct TFlat<TTypeList<H, Ts...>>
 {
     using TType = TTypeList<H, Ts...>;
 };
 
 template <typename H, typename ... Ts>
-struct TFlatImpl<TTypeList<TTypeList<H>, Ts...>>
+struct TFlat<TTypeList<TTypeList<H>, Ts...>>
 {
     using TType = TTypeList<H, Ts...>;
 };
 
-}  // namespace NTypeList
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename TL, typename T>
+struct TFind;
+
+template <typename T>
+struct TFind<TTypeList<>, T>
+{
+    static constexpr int Index = -1;
+};
+
+template <typename ... Ts, typename T>
+struct TFind<TTypeList<T, Ts...>, T>
+{
+    static constexpr int Index = 0;
+};
+
+template <typename H, typename ... Ts, typename T>
+struct TFind<TTypeList<H, Ts...>, T>
+{
+    static constexpr int Index = 1 + TFind<TTypeList<Ts...>, T>::Index;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+template <typename TL, size_t I>
+struct TSelect;
+
+template <typename H, typename ... Ts>
+struct TSelect<TTypeList<H, Ts...>, 0>
+{
+    using TType = H;
+};
+
+template <typename H, typename ... Ts, size_t I>
+struct TSelect<TTypeList<H, Ts...>, I>
+{
+    using TType = typename TSelect<TTypeList<Ts...>, I - 1>::TType;
+};
+
+}   // namespace NDetails
 
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename TL1, typename TL2>
-using TAppend = typename NTypeList::TAppendImpl<TL1, TL2>::TType;
-
-template <typename TL>
-using THead = typename NTypeList::THeadImpl<TL>::TType;
-
-template <typename TL>
-using TTail = typename NTypeList::TTailImpl<TL>::TType;
+using TConcat = typename NDetails::TConcat<TL1, TL2>::TType;
 
 template <typename F, typename TL>
-using TApply = typename NTypeList::TApplyImpl<F, TL>::TType;
+using TMap = typename NDetails::TMap<F, TL>::TType;
 
 template <typename TL>
-using TFlat = typename NTypeList::TFlatImpl<TL>::TType;
+using TFlat = typename NDetails::TFlat<TL>::TType;
+
+template <typename TL, typename T>
+using TFind = NDetails::TFind<TL, T>;
+
+template <typename TL, size_t I>
+using TSelect = typename NDetails::TSelect<TL, I>::TType;
+
+template <typename TL, typename T>
+inline constexpr bool Contains = TFind<TL, T>::Index != -1;
+
+}   // namespace NTL
+
+///////////////////////////////////////////////////////////////////////////////
 
 }   // namespace NExecution

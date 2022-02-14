@@ -12,8 +12,8 @@ struct TNullReceiver
     void OnSuccess(Ts&& ...)
     {}
 
-    template <typename ... Ts>
-    void OnFailure(Ts&& ...)
+    template <typename E>
+    void OnFailure(E&&)
     {
         std::terminate();
     }

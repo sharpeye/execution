@@ -3,6 +3,7 @@
 #include "sender.h"
 #include "type_list.h"
 
+#include <functional>
 #include <type_traits>
 
 namespace NExecution {
@@ -27,23 +28,27 @@ struct TStagingReceiver
     {
         if constexpr (std::is_same_v<void, std::invoke_result_t<F, Ts...>>) {
             std::invoke(std::move(Func), std::forward<Ts>(values)...);
-            std::move(Receiver).OnSuccess();
+            NExecution::Success(std::move(Receiver));
         } else {
-            std::move(Receiver).OnSuccess(
+            NExecution::Success(
+                std::move(Receiver),
                 std::invoke(std::move(Func), std::forward<Ts>(values)...)
             );
         }
     }
 
-    template <typename ... Ts>
-    void OnFailure(Ts&& ... errors)
+    template <typename E>
+    void OnFailure(E&& error)
     {
-        std::move(Receiver).OnFailure(std::forward<Ts>(errors)...);
+        NExecution::Failure(
+            std::move(Receiver),
+            std::forward<E>(error)
+        );
     }
 
     void OnCancel()
     {
-        std::move(Receiver).OnCancel();
+        NExecution::Cancel(std::move(Receiver));
     }
 };
 
@@ -64,9 +69,11 @@ struct TSender
     template <typename R>
     auto Connect(R&& receiver)
     {
-        return std::move(Predecessor).Connect(
-            TStagingReceiver<F, R>(std::move(Func), std::forward<R>(receiver))
-        );
+        return NExecution::Connect(
+            std::move(Predecessor),
+            TStagingReceiver<F, R>{
+                std::move(Func), std::forward<R>(receiver)
+            });
     }
 };
 
@@ -98,13 +105,13 @@ template <typename P, typename F>
 struct TTraits
 {
     template <typename R>
-    using TConnect = NExecution::TConnect<P, TStagingReceiver<F, R>>;
+    using TConnect = TConnectResult<P, TStagingReceiver<F, R>>;
 
     template <typename R>
-    using TSuccess = TApply<TInvokeResultOp<F>, NExecution::TSuccess<P, R>>;
+    using TValues = NTL::TMap<TInvokeResult<F>, TSenderValues<P, R>>;
 
     template <typename R>
-    using TFailure = NExecution::TFailure<P, R>;
+    using TErrors = TSenderErrors<P, R>;
 };
 
 }   // namespace NThen
