@@ -9,16 +9,16 @@ namespace NExecution {
 struct TNullReceiver
 {
     template <typename ... Ts>
-    void OnSuccess(Ts&& ...)
+    void SetValue(Ts&& ...)
     {}
 
     template <typename E>
-    void OnFailure(E&&)
+    void SetError(E&&)
     {
         std::terminate();
     }
 
-    void OnCancel()
+    void SetStopped()
     {
         std::terminate();
     }

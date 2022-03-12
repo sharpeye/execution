@@ -1,10 +1,9 @@
 #pragma once
 
-#include "sender.h"
-#include "type_list.h"
+#include "sender_traits.h"
 
+#include <exception>
 #include <functional>
-#include <type_traits>
 
 namespace NExecution {
 namespace NThen {
@@ -12,25 +11,25 @@ namespace NThen {
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename R>
-struct TStagingReceiver
+struct TReceiver
 {
     F Func;
     R Receiver;
 
     template <typename U>
-    TStagingReceiver(F&& func, U&& receiver)
+    TReceiver(F&& func, U&& receiver)
         : Func(std::move(func))
         , Receiver(std::forward<U>(receiver))
     {}
 
     template <typename ... Ts>
-    void OnSuccess(Ts&& ... values)
+    void SetValue(Ts&& ... values)
     {
-        if constexpr (std::is_same_v<void, std::invoke_result_t<F, Ts...>>) {
+        if constexpr (std::is_void_v<std::invoke_result_t<F, Ts...>>) {
             std::invoke(std::move(Func), std::forward<Ts>(values)...);
-            NExecution::Success(std::move(Receiver));
+            NExecution::SetValue(std::move(Receiver));
         } else {
-            NExecution::Success(
+            NExecution::SetValue(
                 std::move(Receiver),
                 std::invoke(std::move(Func), std::forward<Ts>(values)...)
             );
@@ -38,17 +37,14 @@ struct TStagingReceiver
     }
 
     template <typename E>
-    void OnFailure(E&& error)
+    void SetError(E&& error)
     {
-        NExecution::Failure(
-            std::move(Receiver),
-            std::forward<E>(error)
-        );
+        NExecution::SetError(std::move(Receiver), std::forward<E>(error));
     }
 
-    void OnCancel()
+    void SetStopped()
     {
-        NExecution::Cancel(std::move(Receiver));
+        NExecution::SetStopped(std::move(Receiver));
     }
 };
 
@@ -71,7 +67,7 @@ struct TSender
     {
         return NExecution::Connect(
             std::move(Predecessor),
-            TStagingReceiver<F, R>{
+            TReceiver<F, R>{
                 std::move(Func), std::forward<R>(receiver)
             });
     }
@@ -104,14 +100,37 @@ auto operator | (P&& predecessor, TPartial<F>&& partial)
 template <typename P, typename F>
 struct TTraits
 {
-    template <typename R>
-    using TConnect = TConnectResult<P, TStagingReceiver<F, R>>;
+    static constexpr auto FuncType = NTL::TItem<F>{};
 
     template <typename R>
-    using TValues = NTL::TMap<TInvokeResult<F>, TSenderValues<P, R>>;
+    static constexpr auto OperationType = SenderOperation<P, TReceiver<F, R>>();
 
     template <typename R>
-    using TErrors = TSenderErrors<P, R>;
+    static constexpr auto ValueTypes = NTL::Unique(
+        NTL::Transform(
+            SenderValues<P, TReceiver<F, R>>(),
+            [] (auto sig) {
+                auto r = InvokeResult(FuncType, sig);
+                if constexpr (r == NTL::TItem<void>{}) {
+                    return NTL::TItem<TSignature<>>{};
+                } else {
+                    return NTL::TItem<TSignature<decltype(r)>>{};
+                }
+            }
+        ));
+
+    template <typename R>
+    static constexpr auto ErrorTypes = NTL::Unique(
+        NTL::Fold(
+            SenderValues<P, TReceiver<F, R>>(),
+            SenderErrors<P, TReceiver<F, R>>(),
+            [] (auto errors, auto sig) {
+                if constexpr (IsNothrowInvocable(FuncType, sig)) {
+                    return errors;
+                } else {
+                    return errors | NTL::TItem<std::exception_ptr>{};
+                }
+            }));
 };
 
 }   // namespace NThen

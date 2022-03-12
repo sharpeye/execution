@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sender.h"
+#include "sender_traits.h"
 #include "type_list.h"
 
 #include <tuple>
@@ -10,9 +10,6 @@ namespace NExecution {
 namespace NJust {
 
 ///////////////////////////////////////////////////////////////////////////////
-
-template <typename ... Ts>
-using TTuple = std::tuple<std::decay_t<Ts>...>;
 
 template <typename R, typename T>
 struct TOp
@@ -30,7 +27,7 @@ struct TOp
     {
         std::apply(
             [this] (auto&& ... values) {
-                NExecution::Success(
+                NExecution::SetValue(
                     std::move(Receiver),
                     std::move(values)...
                 );
@@ -45,7 +42,9 @@ struct TOp
 template <typename ... Ts>
 struct TSender
 {
-    TTuple<Ts...> Values;
+    using TTuple = std::tuple<Ts...>;
+
+    TTuple Values;
 
     template <typename ... Us>
     explicit TSender(Us&& ... values)
@@ -55,7 +54,7 @@ struct TSender
     template <typename R>
     auto Connect(R&& receiver)
     {
-        return TOp<R, TTuple<Ts...>>{
+        return TOp<R, TTuple>{
             std::forward<R>(receiver),
             std::move(Values)
         };
@@ -68,15 +67,13 @@ template <typename ... Ts>
 struct TTraits
 {
     template <typename R>
-    using TConnect = TOp<R, TTuple<Ts...>>;
+    static constexpr auto OperationType = NTL::TItem<TOp<R, std::tuple<Ts...>>>{};
 
     template <typename R>
-    using TValues = TTypeList<
-        TSignature<Ts...>
-    >;
+    static constexpr auto ValueTypes = NTL::TTypeList<TSignature<Ts...>>{};
 
     template <typename R>
-    using TErrors = TTypeList<>;
+    static constexpr auto ErrorTypes = NTL::TTypeList<>{};
 };
 
 }   // namespace NJust
@@ -93,7 +90,7 @@ struct TSenderTraits<NJust::TSender<Ts...>>
 template <typename ... Ts>
 auto Just(Ts&& ... values)
 {
-    return NJust::TSender<Ts...>(std::forward<Ts>(values)...);
+    return NJust::TSender<std::decay_t<Ts>...>(std::forward<Ts>(values)...);
 }
 
 }   // namespace NExecution

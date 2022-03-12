@@ -1,108 +1,113 @@
 #pragma once
 
-#include "sender.h"
-#include "type_list.h"
+#include "forward_receiver.h"
+#include "tuple.h"
 #include "variant.h"
 
 #include <functional>
-#include <type_traits>
 
 namespace NExecution {
 namespace NLetValue {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-struct TPredReceiver
-{
-    T* Op;
-
-    template <typename ... Ts>
-    void OnSuccess(Ts&& ... values)
-    {
-        Op->OnSuccess(std::forward<Ts>(values)...);
-    }
-
-    template <typename E>
-    void OnFailure(E&& error)
-    {
-        Op->OnFailure(std::forward<E>(error));
-    }
-
-    void OnCancel()
-    {
-        Op->OnCancel();
-    }
-};
-
-///////////////////////////////////////////////////////////////////////////////
-
 template <typename P, typename F, typename R>
 struct TOp
 {
-    using TPredReceiver = TPredReceiver<TOp<P, F, R>>;
+    using TSelf = TOp<P, F, R>;
 
-    using TSuccessors = NTL::TMap<
-        TInvokeResult<F>,
-        TSenderValues<P, TPredReceiver>
-    >;
+    static constexpr auto PredecessorType = NTL::TItem<P>{};
+    static constexpr auto FactoryType = NTL::TItem<F>{};
+    static constexpr auto ReceiverType = NTL::TItem<R>{};
 
-    // List of possible types
-    using TState = TVariant<
-        NTL::TConcat<
-            TTypeList<
-                P,
-                TConnectResult<P, TPredReceiver>
-            >,
-            NTL::TMap<TConnectResult<R>, TSuccessors>
-        >>;
+    static constexpr auto PredecessorReceiverType = NTL::TItem<TForwardReceiver<TSelf>>{};
+    static constexpr auto PredecessorOperationType = SenderOperation(
+        PredecessorType,
+        PredecessorReceiverType);
+    static constexpr auto PredecessorValuesTypes = SenderValues(
+        PredecessorType,
+        PredecessorReceiverType);
 
-    TState State;
+    static constexpr auto SuccessorTypes = NTL::Transform(
+        PredecessorValuesTypes,
+        [] (auto sig) {
+            return InvokeResult(FactoryType, sig);
+        });
+
+    using TPredecessor = P;
+
+    using TState = decltype(AsVariant(
+          NTL::None
+        | PredecessorType
+        | PredecessorOperationType
+        | NTL::Transform(SuccessorTypes, [] (auto s) {
+            return SenderOperation(s, ReceiverType);
+        })
+    ));
+
+    using TValues = decltype(AsVariant(
+          NTL::None
+        | NTL::Transform(PredecessorValuesTypes, [] (auto sig) {
+            return AsTuple(sig);
+        })
+    ));
+
     F Factory;
     R Receiver;
+    TValues Values;
+    TState State;
 
     template <typename U>
     TOp(P&& predecessor, F&& factory, U&& receiver)
-        : State(std::move(predecessor))
-        , Factory(std::move(factory))
+        : Factory(std::move(factory))
         , Receiver(std::forward<U>(receiver))
+        , State(std::in_place_type<TPredecessor>, std::move(predecessor))
     {}
 
     void Start()
     {
-        auto op = NExecution::Connect(
-            State.template Extract<P>(),
-            TPredReceiver{this}
-        );
-        op.Start();
+        using TOperation = typename decltype(PredecessorOperationType)::TType;
+        using TReceiver = typename decltype(PredecessorReceiverType)::TType;
 
-        State.Replace(std::move(op));
+        auto& op = State.template emplace<TOperation>(
+            NExecution::Connect(
+                std::get<TPredecessor>(std::move(State)),
+                TReceiver{this}
+            ));
+
+        op.Start();
     }
 
     template <typename ... Ts>
-    void OnSuccess(Ts&& ... values)
+    void SetValue(Ts&& ... values)
     {
-        auto op = NExecution::Connect(
-            std::invoke(std::move(Factory), std::forward<Ts>(values)...),
-            std::move(Receiver)
-        );
-        op.Start();
+        using TTuple = std::tuple<std::decay_t<Ts>...>;
+        using TOperation = typename decltype(
+            SenderOperation(
+                InvokeResult(FactoryType, NTL::TItem<TSignature<Ts...>>{}),
+                ReceiverType
+            ))::TType;
 
-        State.Replace(std::move(op));
+        auto& tuple = Values.template emplace<TTuple>(
+            std::forward<Ts>(values)...);
+
+        auto& op = State.template emplace<TOperation>(NExecution::Connect(
+            std::apply(std::move(Factory), tuple),
+            std::move(Receiver)
+        ));
+
+        op.Start();
     }
 
     template <typename E>
-    void OnFailure(E&& error)
+    void SetError(E&& error)
     {
-        NExecution::Failure(
-            std::move(Receiver),
-            std::forward<E>(error)
-        );
+        NExecution::SetError(std::move(Receiver), std::forward<E>(error));
     }
 
-    void OnCancel()
+    void SetStopped()
     {
-        std::move(Receiver).OnCancel();
+        NExecution::SetStopped(std::move(Receiver));
     }
 };
 
@@ -158,27 +163,47 @@ auto operator | (P&& predecessor, TPartial<F>&& partial)
 template <typename P, typename F>
 struct TTraits
 {
-    template <typename R>
-    using TConnect = TPredReceiver<TOp<P, F, R>>;
+    static constexpr auto PredecessorType = NTL::TItem<P>{};
+    static constexpr auto FactoryType = NTL::TItem<F>{};
 
     template <typename R>
-    using TSuccessors = NTL::TMap<
-        TInvokeResult<F>,
-        TSenderValues<P, TConnect<R>>
-    >;
+    static constexpr auto OperationType = NTL::TItem<TOp<P, F, R>>{};
 
     template <typename R>
-    using TValues = NTL::TFlat<
-        NTL::TMap<TSenderValues<R>, TSuccessors<R>>
-    >;
+    static constexpr auto PredecessorReceiverType = NTL::TItem<
+        TForwardReceiver<TOp<P, F, R>>>{};
 
     template <typename R>
-    using TErrors = NTL::TConcat<
-        // Fails on predecessor
-        TSenderErrors<P, TConnect<R>>,
-        // Fails on successor
-        NTL::TMap<TSenderErrors<R>, TSuccessors<R>>
-    >;
+    static constexpr auto SuccessorTypes = NTL::Transform(
+        SenderValues(PredecessorType, NTL::TItem<R>{}),
+        [] (auto sig) {
+            return InvokeResult(FactoryType, sig);
+        }
+    );
+
+    template <typename R>
+    static constexpr auto ValueTypes = NTL::Unique(
+        NTL::Fold(
+            NTL::Transform(
+                SuccessorTypes<R>,
+                [] (auto s) {
+                    return SenderValues(s, NTL::TItem<R>{});
+                }
+            ),
+            NTL::TTypeList<>{},
+            [] (auto x, auto y) {
+                return x | y;
+            }
+        )
+    );
+
+    template <typename R>
+    static constexpr auto ErrorTypes = NTL::Unique(
+          SenderErrors(PredecessorType, PredecessorReceiverType<R>)
+        | NTL::Transform(SuccessorTypes<R>, [] (auto s) {
+            return SenderErrors(s, NTL::TItem<R>{});
+        })
+    );
 };
 
 }   // namespace NLetValue

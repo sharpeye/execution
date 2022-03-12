@@ -2,14 +2,14 @@
 
 #include "type_list.h"
 
-#include <variant>
+#include <tuple>
 
 namespace NExecution {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts>
-consteval auto AsVariant(NTL::TTypeList<Ts...>) -> std::variant<Ts...>
+template <typename ... Ts, template <typename ...> typename F>
+constexpr auto AsTuple(NTL::TItem<F<Ts...>>) -> NTL::TItem<std::tuple<Ts...>>
 {
     return {};
 }
