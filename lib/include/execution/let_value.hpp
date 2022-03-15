@@ -12,10 +12,14 @@ namespace let_value_impl {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts>
-constexpr auto as_tuple(meta::atom<signature<Ts...>>)
-{
+constexpr auto as_tuple = []<typename ... Ts> (meta::atom<signature<Ts...>>) {
     return meta::atom<std::tuple<std::decay_t<Ts>...>>{};
+};
+
+template <typename ... Ts>
+constexpr auto to_variant(meta::list<Ts...>)
+{
+    return std::variant<std::monostate, Ts...>{};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,20 +47,17 @@ struct operation
             return traits::invoke_result(factory_type, sig);
         });
 
-    using state_t = typename decltype(meta::convert_to<std::variant>(
+    using state_t = decltype(to_variant(
           predecessor_type
         | predecessor_operation_type
         | meta::transform(successor_types, [] (auto s) {
             return traits::sender_operation(s, receiver_type);
         })
-    ))::type;
+    ));
 
-    using values_t = typename decltype(meta::convert_to<std::variant>(
-          meta::list<int>{}
-        | meta::transform(predecessor_value_types, [] (auto sig) {
-            return as_tuple(sig);
-        })
-    ))::type;
+    using values_t = decltype(to_variant(
+        meta::transform(predecessor_value_types, as_tuple)
+    ));
 
     F _factory;
     R _receiver;

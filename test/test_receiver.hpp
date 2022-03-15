@@ -1,7 +1,6 @@
 #pragma once
 
-#include <execution/meta.hpp>
-
+#include <cstddef>
 #include <functional>
 #include <type_traits>
 
@@ -10,9 +9,9 @@ namespace execution {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <
-    typename S = meta::atom<void>,
-    typename F = meta::atom<void>,
-    typename C = meta::atom<void>
+    typename S = std::nullptr_t,
+    typename F = std::nullptr_t,
+    typename C = std::nullptr_t
 >
 struct test_receiver
 {
