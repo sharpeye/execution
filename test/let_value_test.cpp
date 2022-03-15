@@ -1,54 +1,54 @@
-#include "test_receiver.h"
+#include "test_receiver.hpp"
 
-#include <execution/just.h>
-#include <execution/let_value.h>
+#include <execution/just.hpp>
+#include <execution/let_value.hpp>
 
 #include <gtest/gtest.h>
 
-using namespace NExecution;
+using namespace execution;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(LetValue, Simple)
+TEST(let_value, simple)
 {
-    auto s = Just(1, 2, 3)
-        | LetValue([] (int x, int y, int z) {
-            return Just(x + y + z);
+    auto s = just(1, 2, 3)
+        | let_value([] (int x, int y, int z) {
+            return just(x + y + z);
         });
 
     int value = 0;
 
-    auto op = Connect(std::move(s), TTestReceiver()
-        .OnValue([&] (int x) {
+    auto op = connect(std::move(s), test_receiver{}
+        .on_value([&] (int x) {
             value = x;
         }));
 
-    op.Start();
+    op.start();
 
     EXPECT_EQ(6, value);
 }
 
-TEST(LetValue, Complex)
+TEST(let_value, complex)
 {
-    auto s = Just(1, 2, 3)
-        | LetValue([] (int x, int y, int z) {
-            return Just(x + y + z);
+    auto s = just(1, 2, 3)
+        | let_value([] (int x, int y, int z) {
+            return just(x + y + z);
         })
-        | LetValue([] (int x) {
-            return Just(x, x)
-                | LetValue([] (int x, int y) {
-                    return Just(x + y);
+        | let_value([] (int x) {
+            return just(x, x)
+                | let_value([] (int x, int y) {
+                    return just(x + y);
                 });
         });
 
     int value = 0;
 
-    auto op = Connect(std::move(s), TTestReceiver()
-        .OnValue([&] (int x) {
+    auto op = connect(std::move(s), test_receiver{}
+        .on_value([&] (int x) {
             value = x;
         }));
 
-    op.Start();
+    op.start();
 
     EXPECT_EQ(12, value);
 }

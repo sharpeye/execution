@@ -2,26 +2,26 @@
 
 #include <exception>
 
-namespace NExecution {
+namespace execution {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-struct TNullReceiver
+struct null_receiver
 {
     template <typename ... Ts>
-    void SetValue(Ts&& ...)
+    void set_value(Ts&& ...)
     {}
 
     template <typename E>
-    void SetError(E&&)
+    [[ noreturn ]] void set_error(E&&)
     {
         std::terminate();
     }
 
-    void SetStopped()
+    [[ noreturn ]] void set_stopped()
     {
         std::terminate();
     }
 };
 
-}   // namespace NExecution
+}   // namespace execution

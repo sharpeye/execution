@@ -1,35 +1,35 @@
-#include "test_receiver.h"
+#include "test_receiver.hpp"
 
-#include <execution/just.h>
+#include <execution/just.hpp>
 
 #include <gtest/gtest.h>
 
-using namespace NExecution;
+using namespace execution;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(Just, Test)
+TEST(just, test)
 {
     {
         bool value = false;
-        auto op = Connect(Just(), TTestReceiver()
-            .OnValue([&] {
+        auto op = connect(just(), test_receiver{}
+            .on_value([&] {
                 value = true;
             }));
 
-        op.Start();
+        op.start();
 
         EXPECT_EQ(true, value);
     }
 
     {
         int value = 0;
-        auto op = Connect(Just(42), TTestReceiver()
-            .OnValue([&] (int x) {
+        auto op = connect(just(42), test_receiver{}
+            .on_value([&] (int x) {
                 value = x;
             }));
 
-        op.Start();
+        op.start();
 
         EXPECT_EQ(42, value);
     }
@@ -37,12 +37,12 @@ TEST(Just, Test)
     {
         std::pair<int, int> value {};
 
-        auto op = Connect(Just(1, 2), TTestReceiver()
-            .OnValue([&] (int x, int y) {
+        auto op = connect(just(1, 2), test_receiver{}
+            .on_value([&] (int x, int y) {
                 value = {x, y};
             }));
 
-        op.Start();
+        op.start();
 
         EXPECT_EQ(1, std::get<0>(value));
         EXPECT_EQ(2, std::get<1>(value));
