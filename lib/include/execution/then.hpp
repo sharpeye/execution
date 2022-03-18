@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pipeable.hpp"
 #include "sender_traits.hpp"
 
 #include <exception>
@@ -72,23 +73,12 @@ struct sender
 
 ///////////////////////////////////////////////////////////////////////////////
 
-template <typename F>
-struct partial
-{
-    F _func;
-
-    template <typename U>
-    partial(U&& func)
-        : _func(std::forward<U>(func))
-    {}
-};
-
 struct then
 {
     template <typename F>
     constexpr auto operator () (F&& func) const
     {
-        return partial<F>{std::forward<F>(func)};
+        return pipeable(*this, std::forward<F>(func));
     }
 
     template <typename P, typename F>
@@ -100,15 +90,6 @@ struct then
         };
     }
 };
-
-template <typename P, typename F>
-auto operator | (P&& predecessor, partial<F>&& part)
-{
-    return sender<P, F>{
-        std::forward<P>(predecessor),
-        std::move(part._func)
-    };
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 
