@@ -112,7 +112,7 @@ struct sender_traits
             meta::transform_unique(
                 traits::sender_values(predecessor_type, receiver_type),
                 [] (auto sig) {
-                    return traits::invoke_result(func_type, sig);
+                    return to_signature(traits::invoke_result(func_type, sig));
                 }
             ),
             meta::none

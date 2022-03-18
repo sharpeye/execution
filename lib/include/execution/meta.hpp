@@ -121,7 +121,7 @@ consteval bool operator == (atom<T>, atom<H>)
 template <typename ... Ts, typename ... Hs>
 consteval bool operator == (list<Ts...>, list<Hs...>)
 {
-    return (std::is_same_v<Ts, Hs> && ...);
+    return std::is_same_v<list<Ts...>, list<Hs...>>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,10 +3,10 @@
 #include "forward_receiver.hpp"
 #include "pipeable.hpp"
 #include "sender_traits.hpp"
+#include "variant.hpp"
 
 #include <functional>
 #include <tuple>
-#include <variant>
 
 namespace execution {
 namespace let_value_impl {
@@ -16,12 +16,6 @@ namespace let_value_impl {
 constexpr auto as_tuple = []<typename ... Ts> (meta::atom<signature<Ts...>>) {
     return meta::atom<std::tuple<std::decay_t<Ts>...>>{};
 };
-
-template <typename ... Ts>
-constexpr auto to_variant(meta::list<Ts...>)
-{
-    return std::variant<std::monostate, Ts...>{};
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -48,17 +42,18 @@ struct operation
             return traits::invoke_result(factory_type, sig);
         });
 
-    using state_t = decltype(to_variant(
+    using state_t = variant_t<decltype(
           predecessor_type
         | predecessor_operation_type
         | meta::transform(successor_types, [] (auto s) {
             return traits::sender_operation(s, receiver_type);
         })
-    ));
+    )>;
 
-    using values_t = decltype(to_variant(
-        meta::transform(predecessor_value_types, as_tuple)
-    ));
+    using values_t = variant_t<decltype(
+          meta::atom<std::monostate>{}
+        | meta::transform(predecessor_value_types, as_tuple)
+    )>;
 
     F _factory;
     R _receiver;
@@ -92,7 +87,7 @@ struct operation
         using tuple_t = std::tuple<std::decay_t<Ts>...>;
         using operation_t = typename decltype(
             traits::sender_operation(
-                traits::invoke_result(factory_type, meta::atom<Ts>{}...),
+                traits::invoke_result(factory_type, meta::atom<signature<Ts...>>{}),
                 receiver_type
             ))::type;
 
