@@ -28,13 +28,13 @@ TEST(meta, list)
 
     static_assert(ls.length == 3);
 
-    static_assert(ls[number<0>] == atom<int>{});
-    static_assert(ls[number<1>] == atom<char>{});
-    static_assert(ls[number<2>] == atom<double>{});
+    static_assert(ls[index_t<0>{}] == atom<int>{});
+    static_assert(ls[index_t<1>{}] == atom<char>{});
+    static_assert(ls[index_t<2>{}] == atom<double>{});
 
-    static_assert(ls[number<-1>] == atom<double>{});
-    static_assert(ls[number<-2>] == atom<char>{});
-    static_assert(ls[number<-3>] == atom<int>{});
+    static_assert(ls[index_t<-1>{}] == atom<double>{});
+    static_assert(ls[index_t<-2>{}] == atom<char>{});
+    static_assert(ls[index_t<-3>{}] == atom<int>{});
 
     static_assert(last(ls) == atom<double>{});
 
@@ -55,23 +55,20 @@ TEST(meta, list)
     static_assert(replace(ls, atom<double>{}, atom<float>{}) == list<int, char, float>{});
     static_assert(remove(ls, atom<double>{}) == list<int, char>{});
 
-    static_assert(fold(iota<3>, number<0>, [] (auto s, auto i) {
-        return s + i;
-    }) == number<3>);
+    static_assert(fold(iota<3>, index_t<0>{}, [] <int s, int i> (index_t<s>, index_t<i>) {
+        return index_t<s + i>{};
+    }) == index_t<3>{});
 
-    static_assert(transform(iota<3>, [] (auto i) {
-        return i + i;
+    static_assert(transform(iota<3>, [] <int i> (index_t<i>) {
+        return index_t<i + i>{};
     }) == list<int_constant_t<0>, int_constant_t<2>, int_constant_t<4>>{});
 
-    static_assert(std::is_same_v<
-        decltype(convert_to<std::tuple>(ls))::type,
-        std::tuple<int, char, double>
-    >);
-
-    static_assert(std::is_same_v<
-        decltype(convert_to<std::variant>(ls))::type,
-        std::variant<int, char, double>
-    >);
+    static_assert(
+        transform(
+            list<std::variant<int>, std::variant<char>, std::variant<double>>{},
+            convert_to<std::tuple>)
+        == list<std::tuple<int>, std::tuple<char>, std::tuple<double>>{}
+    );
 
     static_assert(
         chain(list<list<int>, list<char>, list<double>>{}).head == atom<int>{}

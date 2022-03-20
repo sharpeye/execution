@@ -17,20 +17,11 @@ static constexpr auto none = atom<void>{};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <int I>
-using int_constant_t = std::integral_constant<int, I>;
+template <int value>
+using int_constant_t = std::integral_constant<int, value>;
 
-template <int I>
-using number_t = atom<int_constant_t<I>>;
-
-template <int I>
-static constexpr auto number = number_t<I>{};
-
-template <int I, int J>
-constexpr auto operator + (number_t<I>, number_t<J>)
-{
-    return number<I + J>;
-}
+template <int value>
+using index_t = atom<int_constant_t<value>>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,22 +44,22 @@ struct list<H, Ts...>
     static constexpr auto head = atom<H>{};
     static constexpr auto tail = list<Ts...>{};
 
-    template <int I>
-    consteval auto operator [] (number_t<I>) const
+    template <int index>
+    consteval auto operator [] (index_t<index>) const
     {
         static_assert(
-            (0 <= I && I < list::length) ||
-            (0 < -I && -I <= list::length),
-            "number overflow"
+            (0 <= index && index < list::length) ||
+            (0 < -index && -index <= list::length),
+            "index overflow"
         );
 
-        if constexpr (I == 0 || -I == list::length) {
+        if constexpr (index == 0 || -index == list::length) {
             return list::head;
         } else {
-            if constexpr (I < 0) {
-                return list::tail[number<list::length + I - 1>];
+            if constexpr (index < 0) {
+                return list::tail[index_t<list::length + index - 1>{}];
             } else {
-                return list::tail[number<I - 1>];
+                return list::tail[index_t<index - 1>{}];
             }
         }
     }
@@ -104,11 +95,21 @@ consteval bool is_atom(T)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 template <template <typename...> typename F, typename ... Ts>
 consteval auto convert_to(list<Ts...>)
 {
     return atom<F<Ts...>>{};
-}
+}*/
+
+template <template <typename...> typename F>
+constexpr auto convert_to = [] <
+        template <typename...> typename U,
+        typename ... Ts
+    > (meta::atom<U<Ts...>>) consteval
+    {
+        return meta::atom<F<Ts...>>{};
+    };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,7 +286,7 @@ static constexpr auto iota = iota_impl(std::make_integer_sequence<int, N>{});
 template <typename ... Ts>
 consteval auto last(list<Ts...> ls)
 {
-    return ls[number<-1>];
+    return ls[index_t<-1>{}];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "forward_receiver.hpp"
 #include "pipeable.hpp"
 #include "sender_traits.hpp"
+#include "tuple.hpp"
 #include "variant.hpp"
 
 #include <functional>
@@ -10,12 +11,6 @@
 
 namespace execution {
 namespace let_value_impl {
-
-///////////////////////////////////////////////////////////////////////////////
-
-constexpr auto as_tuple = []<typename ... Ts> (meta::atom<signature<Ts...>>) {
-    return meta::atom<std::tuple<std::decay_t<Ts>...>>{};
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +47,7 @@ struct operation
 
     using values_t = variant_t<decltype(
           meta::atom<std::monostate>{}
-        | meta::transform(predecessor_value_types, as_tuple)
+        | meta::transform(predecessor_value_types, meta::convert_to<decayed_tuple_t>)
     )>;
 
     F _factory;
@@ -84,7 +79,7 @@ struct operation
     template <typename ... Ts>
     void set_value(Ts&& ... values)
     {
-        using tuple_t = std::tuple<std::decay_t<Ts>...>;
+        using tuple_t = decayed_tuple_t<Ts...>;
         using operation_t = typename decltype(
             traits::sender_operation(
                 traits::invoke_result(factory_type, meta::atom<signature<Ts...>>{}),

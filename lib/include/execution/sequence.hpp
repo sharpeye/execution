@@ -10,7 +10,7 @@ namespace sequence_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, int I>
+template <typename T, auto index>
 struct receiver
 {
     T* _operation;
@@ -18,7 +18,7 @@ struct receiver
     template <typename ... Ts>
     void set_value(Ts&& ... values)
     {
-        _operation->set_value(meta::number<I>, std::forward<Ts>(values)...);
+        _operation->set_value(index, std::forward<Ts>(values)...);
     }
 
     template <typename E>
@@ -29,7 +29,7 @@ struct receiver
 
     void set_stopped()
     {
-        _operation->SetStopped();
+        _operation->set_stopped();
     }
 };
 
@@ -42,8 +42,8 @@ struct operation
     static constexpr auto sender_types = meta::list<Ts...>{};
     static constexpr auto receiver_types = meta::transform(
         indices,
-        [] <int I> (meta::number_t<I>) {
-            return meta::atom<receiver<operation, I>>{};
+        [] (auto index) {
+            return meta::atom<receiver<operation, index>>{};
         });
     static constexpr auto operation_types = meta::transform(
         indices,
@@ -67,7 +67,7 @@ struct operation
     explicit operation(U&& receiver, std::tuple<Ts...>&& senders)
         : _receiver(std::forward<U>(receiver))
         , _senders(std::move(senders))
-        , _state(std::monostate{})
+        , _state(std::in_place_type<std::monostate>)
     {}
 
     void start()
@@ -75,12 +75,12 @@ struct operation
         start_next<0>();
     }
 
-    template <int I, typename ... Us>
-    void set_value(meta::number_t<I>, Us&& ... values)
+    template <int i, typename ... Us>
+    void set_value(meta::index_t<i>, Us&& ... values)
     {
-        if constexpr (I + 1 < sizeof ... (Ts)) {
+        if constexpr (i + 1 < sizeof ... (Ts)) {
             static_assert(sizeof ... (Us) == 0);
-            start_next<I + 1>();
+            start_next<i + 1>();
         } else {
             execution::set_value(
                 std::move(_receiver),
@@ -100,12 +100,12 @@ struct operation
         execution::set_stopped(std::move(_receiver));
     }
 
-    template <int I>
+    template <int i>
     void start_next()
     {
-        auto& op = _state.template emplace<I>(execution::connect(
-            std::get<I>(std::move(_senders)),
-            receiver<operation, I>{this}
+        auto& op = _state.template emplace<i>(execution::connect(
+            std::get<i>(std::move(_senders)),
+            receiver<operation, meta::index_t<i>{}>{this}
         ));
 
         op.start();
@@ -168,13 +168,13 @@ struct sender_traits
         static constexpr auto operation_type = meta::atom<operation<R, T, Ts...>>{};
         static constexpr auto receiver_types = meta::transform(
             indices,
-            [] <int I> (meta::number_t<I>) {
-                return meta::atom<receiver<operation_t, I>>{};
+            [] (auto index) {
+                return meta::atom<receiver<operation_t, index>>{};
             });
 
         static constexpr auto value_types = traits::sender_values(
-            sender_types[meta::number<-1>],
-            receiver_types[meta::number<-1>]
+            meta::last(sender_types),
+            meta::last(receiver_types)
         );
 
         static constexpr auto error_types = meta::transform_unique(
