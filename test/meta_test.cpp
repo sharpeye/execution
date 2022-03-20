@@ -9,9 +9,6 @@ using namespace execution::meta;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename X>
-    struct Foo;
-
 TEST(meta, list)
 {
     constexpr auto nothing = list<>{};

@@ -2,6 +2,7 @@
 
 #include "pipeable.hpp"
 #include "sender_traits.hpp"
+#include "stop_token.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
 
@@ -171,7 +172,7 @@ public:
         );
 
         ops._stop_callback.emplace(
-            ops._stop_source.get_token(),
+            execution::get_stop_token(_receiver),
             cancel_callback{this}
         );
 
@@ -202,6 +203,7 @@ public:
             error_tag{},
             std::forward<E>(error)
         );
+
         notify_operation_complete();
     }
 
@@ -255,12 +257,16 @@ public:
 
     void finish()
     {
-        std::visit([this] (auto&& tuple) {
-            std::apply(
-                [this] (auto&& ... values) { set_by_tag(std::move(values)...); },
-                std::move(tuple)
-            );
-        }, std::move(_storage));
+        try {
+            std::visit([this] (auto&& tuple) {
+                std::apply(
+                    [this] (auto&& ... values) { set_by_tag(std::move(values)...); },
+                    std::move(tuple)
+                );
+            }, std::move(_storage));
+        } catch (...) {
+            execution::set_error(std::move(_receiver), std::current_exception());
+        }
     }
 
     auto get_stop_token() const noexcept {
@@ -341,8 +347,10 @@ struct sender_traits
         static constexpr auto value_types = traits::sender_values(
             source_type, receiver_type);
 
-        static constexpr auto error_types = traits::sender_errors(
-            source_type, receiver_type);
+        static constexpr auto error_types = meta::concat_unique(
+            traits::sender_errors(source_type, receiver_type),
+            meta::list<std::exception_ptr>{}
+        );
     };
 };
 
