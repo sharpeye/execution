@@ -10,7 +10,7 @@ using namespace execution;
 
 TEST(simple_thread_pool, test)
 {
-    simple_thread_pool pool{1};
+    simple_thread_pool pool{2};
 
     std::promise<int> promise;
     auto future = promise.get_future();

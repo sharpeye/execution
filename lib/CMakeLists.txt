@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-add_library(execution INTERFACE)
+add_library(execution STATIC)
 
 set_target_properties(execution PROPERTIES
     CXX_STANDARD 20
@@ -8,4 +8,9 @@ set_target_properties(execution PROPERTIES
     CXX_EXTENSIONS NO
 )
 
-target_include_directories(execution INTERFACE include)
+target_include_directories(execution PUBLIC include)
+
+target_sources(execution
+    PRIVATE
+    source/simple_thread_pool.cpp
+)
