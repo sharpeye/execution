@@ -3,6 +3,7 @@
 #include "meta.hpp"
 
 #include <exception>
+#include <functional>
 #include <utility>
 
 namespace execution {

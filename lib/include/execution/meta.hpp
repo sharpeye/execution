@@ -13,7 +13,8 @@ struct atom
     using type = T;
 };
 
-static constexpr auto none = atom<void>{};
+using none_t = atom<void>;
+static constexpr auto none = none_t{};
 
 ////////////////////////////////////////////////////////////////////////////////
 
