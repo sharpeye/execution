@@ -101,4 +101,10 @@ constexpr auto connect(S&& sender, R&& receiver)
     return std::forward<S>(sender).connect(std::forward<R>(receiver));
 }
 
+template <typename T>
+constexpr auto start(T& operation)
+{
+    operation.start();
+}
+
 }   // namespace execution

@@ -55,11 +55,11 @@ struct operation
     values_t _values;
     state_t _state;
 
-    template <typename U>
-    operation(P&& predecessor, F&& factory, U&& receiver)
-        : _factory(std::move(factory))
-        , _receiver(std::forward<U>(receiver))
-        , _state(std::in_place_type<P>, std::move(predecessor))
+    template <typename Px, typename Fx, typename Rx>
+    operation(Px&& predecessor, Fx&& factory, Rx&& receiver)
+        : _factory(std::forward<Fx>(factory))
+        , _receiver(std::forward<Rx>(receiver))
+        , _state(std::in_place_type<P>, std::forward<Px>(predecessor))
     {}
 
     void start()
@@ -73,7 +73,7 @@ struct operation
                 receiver_t{this}
             ));
 
-        op.start();
+        execution::start(op);
     }
 
     template <typename ... Ts>
@@ -94,7 +94,7 @@ struct operation
             std::move(_receiver)
         ));
 
-        op.start();
+        execution::start(op);
     }
 
     template <typename E>
@@ -124,7 +124,17 @@ struct sender
     {}
 
     template <typename R>
-    auto connect(R&& receiver)
+    auto connect(R&& receiver) &
+    {
+        return operation<P, F, R>{
+            _predecessor,
+            _successor_factory,
+            std::forward<R>(receiver)
+        };
+    }
+
+    template <typename R>
+    auto connect(R&& receiver) &&
     {
         return operation<P, F, R>{
             std::move(_predecessor),
@@ -147,7 +157,7 @@ struct let_value
     template <typename P, typename F>
     constexpr auto operator () (P&& predecessor, F&& factory) const
     {
-        return sender<P, F>{
+        return sender<std::decay_t<P>, std::decay_t<F>>{
             std::forward<P>(predecessor),
             std::forward<F>(factory)
         };
@@ -200,7 +210,7 @@ struct sender_traits
                 );
 
                 if constexpr (nothrow) {
-                    return meta::nothing;
+                    return meta::list<>{};
                 } else {
                     return meta::list<std::exception_ptr>{};
                 }

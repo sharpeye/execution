@@ -4,6 +4,7 @@
 #include "variant.hpp"
 
 #include <functional>
+#include <utility>
 
 namespace execution {
 namespace sequence_impl {
@@ -63,10 +64,10 @@ struct operation
     std::tuple<Ts...> _senders;
     state_t _state;
 
-    template <typename U>
-    explicit operation(U&& receiver, std::tuple<Ts...>&& senders)
+    template <typename U, typename S>
+    explicit operation(U&& receiver, S&& senders)
         : _receiver(std::forward<U>(receiver))
-        , _senders(std::move(senders))
+        , _senders(std::forward<S>(senders))
         , _state(std::in_place_type<std::monostate>)
     {}
 
@@ -114,28 +115,34 @@ struct operation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename ... Ts>
+template <typename ... Ts>
 struct sender
 {
-    std::tuple<T, Ts...> _senders;
+    std::tuple<Ts...> _senders;
 
-    template <typename U, typename ... Us>
-    explicit sender(U&& s0, Us&& ... ss)
-        : _senders{ std::forward<U>(s0), std::forward<Us>(ss)... }
+    template <typename ... Us>
+    explicit sender(std::in_place_t, Us&& ... ss)
+        : _senders{ std::forward<Us>(ss)... }
     {}
 
     template <typename R>
-    auto connect(R&& receiver)
+    auto connect(R&& receiver) &
     {
-        return operation<R, T, Ts...>{
+        return operation<R, Ts...>{
+            std::forward<R>(receiver),
+            _senders
+        };
+    }
+
+    template <typename R>
+    auto connect(R&& receiver) &&
+    {
+        return operation<R, Ts...>{
             std::forward<R>(receiver),
             std::move(_senders)
         };
     }
 };
-
-template <typename T, typename ... Ts>
-sender(T&&, Ts&& ...) -> sender<std::decay_t<T>, std::decay_t<Ts>...>;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -144,7 +151,8 @@ struct sequence
     template <typename T, typename ... Ts>
     constexpr auto operator () (T&& s0, Ts&& ... ss) const
     {
-        return sender{
+        return sender<std::decay_t<T>, std::decay_t<Ts>...>{
+            std::in_place,
             std::forward<T>(s0),
             std::forward<Ts>(ss)...
         };

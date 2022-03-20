@@ -60,7 +60,18 @@ struct sender
     {}
 
     template <typename R>
-    auto connect(R&& receiver)
+    auto connect(R&& receiver) &
+    {
+        return execution::connect(
+            _predecessor,
+            then_receiver<F, R>{
+                std::move(_func),
+                std::forward<R>(receiver)
+            });
+    }
+
+    template <typename R>
+    auto connect(R&& receiver) &&
     {
         return execution::connect(
             std::move(_predecessor),
@@ -84,7 +95,7 @@ struct then
     template <typename P, typename F>
     constexpr auto operator () (P&& predecessor, F&& func) const
     {
-        return sender<P, F>{
+        return sender<std::decay_t<P>, std::decay_t<F>>{
             std::forward<P>(predecessor),
             std::forward<F>(func)
         };
@@ -129,7 +140,7 @@ struct sender_traits
                 );
 
                 if constexpr (nothrow) {
-                    return meta::nothing;
+                    return meta::list<>{};
                 } else {
                     return meta::list<std::exception_ptr>{};
                 }

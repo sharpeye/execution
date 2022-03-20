@@ -1,10 +1,13 @@
 #include "test_receiver.hpp"
 
 #include <execution/just.hpp>
+#include <execution/sync_wait.hpp>
+#include <execution/then.hpp>
 
 #include <gtest/gtest.h>
 
 #include <string>
+#include <vector>
 
 using namespace execution;
 
@@ -23,9 +26,12 @@ TEST(just, traits)
     constexpr auto s2_type = meta::atom<decltype(s2)>{};
     constexpr auto receiver_type = meta::atom<test_receiver<>>{};
 
-    static_assert(traits::sender_errors(s0_type, receiver_type) == meta::list<>{}); 
-    static_assert(traits::sender_errors(s1_type, receiver_type) == meta::list<>{});
-    static_assert(traits::sender_errors(s2_type, receiver_type) == meta::list<>{});
+    static_assert(traits::sender_errors(s0_type, receiver_type)
+        == meta::list<std::exception_ptr>{});
+    static_assert(traits::sender_errors(s1_type, receiver_type)
+        == meta::list<std::exception_ptr>{});
+    static_assert(traits::sender_errors(s2_type, receiver_type)
+        == meta::list<std::exception_ptr>{});
 
     static_assert(traits::sender_values(s0_type, receiver_type)
         == meta::list<signature<>>{});
@@ -75,5 +81,48 @@ TEST(just, test)
 
         EXPECT_EQ(1, std::get<0>(value));
         EXPECT_EQ(2, std::get<1>(value));
+    }
+
+    {
+        auto s0 = just(std::vector<int>{ 1, 2, 3 });
+
+        auto s1 = then(s0, [] (auto&& v) {
+            for (auto& x: v) {
+                x *= 2;
+            }
+            return std::move(v);
+        });
+
+        {
+            // copy s0
+            auto [r] = *this_thread::sync_wait(then(s0, [] (auto&& v) {
+                for (auto& x: v) {
+                    x *= 2;
+                }
+                return std::move(v);
+            }));
+
+            EXPECT_EQ(3, r.size());
+            EXPECT_EQ((std::vector { 2, 4, 6 }), r);
+        }
+
+        {
+            // move
+            auto [r] = *this_thread::sync_wait(then(std::move(s0), [] (auto&& v) {
+                for (auto& x: v) {
+                    x *= 2;
+                }
+                return std::move(v);
+            }));
+
+            EXPECT_EQ(3, r.size());
+            EXPECT_EQ((std::vector { 2, 4, 6 }), r);
+        }
+
+        {
+            auto [r] = *this_thread::sync_wait(s0);
+
+            EXPECT_EQ(0, r.size());
+        }
     }
 }

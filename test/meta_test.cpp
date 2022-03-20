@@ -14,6 +14,8 @@ template <typename X>
 
 TEST(meta, list)
 {
+    constexpr auto nothing = list<>{};
+
     static_assert(nothing.length == 0);
     static_assert(list<int>{}.length == 1);
     static_assert(list<int>{}.head == atom<int>{});

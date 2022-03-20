@@ -65,48 +65,11 @@ struct list<H, Ts...>
     }
 };
 
-static constexpr auto nothing = list<>{};
-
 ////////////////////////////////////////////////////////////////////////////////
-
-template <typename ... Ts>
-consteval bool is_list(list<Ts...>)
-{
-    return true;
-}
-
-template <typename T>
-consteval bool is_list(T)
-{
-    return false;
-}
-
-template <typename T>
-consteval bool is_atom(atom<T>)
-{
-    return true;
-}
-
-template <typename T>
-consteval bool is_atom(T)
-{
-    return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-/*
-template <template <typename...> typename F, typename ... Ts>
-consteval auto convert_to(list<Ts...>)
-{
-    return atom<F<Ts...>>{};
-}*/
 
 template <template <typename...> typename F>
-constexpr auto convert_to = [] <
-        template <typename...> typename U,
-        typename ... Ts
-    > (meta::atom<U<Ts...>>) consteval
+constexpr auto convert_to = [] <template <typename...> typename U, typename ... Ts>
+        (meta::atom<U<Ts...>>) consteval
     {
         return meta::atom<F<Ts...>>{};
     };

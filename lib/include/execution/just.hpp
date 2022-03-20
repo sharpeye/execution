@@ -3,6 +3,7 @@
 #include "sender_traits.hpp"
 
 #include <tuple>
+#include <utility>
 
 namespace execution {
 namespace just_impl {
@@ -15,23 +16,27 @@ struct operation
     R _receiver;
     T _values;
 
-    template <typename U>
-    operation(U&& receiver, T&& values)
+    template <typename U, typename V>
+    operation(U&& receiver, V&& values)
         : _receiver(std::forward<U>(receiver))
-        , _values(std::move(values))
+        , _values(std::forward<V>(values))
     {}
 
-    void start()
+    void start() & noexcept
     {
-        std::apply(
-            [this] (auto&& ... values) {
-                execution::set_value(
-                    std::move(_receiver),
-                    std::move(values)...
-                );
-            },
-            std::move(_values)
-        );
+        try {
+            std::apply(
+                [this] (auto&& ... values) {
+                    execution::set_value(
+                        std::move(_receiver),
+                        std::move(values)...
+                    );
+                },
+                std::move(_values)
+            );
+        } catch(...) {
+            execution::set_error(std::move(_receiver), std::current_exception());
+        }
     }
 };
 
@@ -45,12 +50,21 @@ struct sender
     tuple_t _values;
 
     template <typename ... Us>
-    explicit sender(Us&& ... values)
+    explicit sender(std::in_place_t, Us&& ... values)
         : _values(std::forward<Us>(values)...)
     {}
 
     template <typename R>
-    auto connect(R&& receiver)
+    auto connect(R&& receiver) &
+    {
+        return operation<R, tuple_t>{
+            std::forward<R>(receiver),
+            _values
+        };
+    }
+
+    template <typename R>
+    auto connect(R&& receiver) &&
     {
         return operation<R, tuple_t>{
             std::forward<R>(receiver),
@@ -67,6 +81,7 @@ struct just
     constexpr auto operator () (Ts&& ... values) const
     {
         return just_impl::sender<std::decay_t<Ts>...>(
+            std::in_place,
             std::forward<Ts>(values)...
         );
     }
@@ -84,7 +99,10 @@ struct sender_traits
 
         static constexpr auto operation_type = meta::atom<operation_t>{};
         static constexpr auto value_types = meta::list<signature<Ts...>>{};
-        static constexpr auto error_types = meta::nothing;
+        static constexpr auto error_types =
+            // TODO
+            meta::list<std::exception_ptr>{}
+            ;
     };
 };
 
