@@ -1,5 +1,7 @@
 #include <execution/simple_thread_pool.hpp>
 
+#include <cassert>
+
 namespace execution {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +19,7 @@ simple_thread_pool::simple_thread_pool(std::size_t thread_count)
 void simple_thread_pool::shutdown()
 {
     for (auto& t: _threads) {
-        enqueue({});
+        enqueue(task{});
     }
 
     for (auto& t: _threads) {
@@ -34,6 +36,8 @@ void simple_thread_pool::shutdown()
 
 void simple_thread_pool::enqueue(void (*fn)())
 {
+    assert(fn);
+
     static_assert(sizeof(fn) == sizeof(void*));
     enqueue({
         .data = reinterpret_cast<void*>(fn),
@@ -76,6 +80,9 @@ void simple_thread_pool::worker()
 
 void simple_thread_pool::execute(task t)
 {
+    assert(t.execute);
+    assert(t.data);
+
     t.execute(t.data);
 }
 

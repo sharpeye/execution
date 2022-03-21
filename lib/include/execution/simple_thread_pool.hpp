@@ -17,7 +17,6 @@ class simple_thread_pool
     {
         void* data;
         void (*execute)(void*);
-        void (*cleanup)(void*);
     };
 
     // struct scheduler
