@@ -2,11 +2,11 @@
 
 #include <cassert>
 
-namespace execution {
+namespace execution::simple_thread_pool_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-simple_thread_pool::simple_thread_pool(std::size_t thread_count)
+thread_pool::thread_pool(std::size_t thread_count)
 {
     _threads.reserve(thread_count);
     for (std::size_t i = 0; i != thread_count; ++i) {
@@ -14,63 +14,92 @@ simple_thread_pool::simple_thread_pool(std::size_t thread_count)
             worker();
         });
     }
+
+    _threads.emplace_back([this] {
+        timed_worker();
+    });
 }
 
-void simple_thread_pool::shutdown()
+thread_pool::~thread_pool()
 {
-    for (auto& t: _threads) {
-        enqueue(task{});
-    }
+    shutdown();
+}
+
+void thread_pool::shutdown()
+{
+    _should_stop.test_and_set();
+    _cv.notify_all();
+    _timed_cv.notify_all();
 
     for (auto& t: _threads) {
         t.join();
     }
 
-    // drain
+    while (!_timed_queue.empty()) {
+        discard(_timed_queue.top());
+        _timed_queue.pop();
+    }
 
-    while (!_queue.empty()) {
-        execute(_queue.front());
-        _queue.pop();
+    while (!_urgent_tasks.empty()) {
+        discard(_urgent_tasks.front());
+        _urgent_tasks.pop();
+    }
+
+    while (!_tasks.empty()) {
+        discard(_tasks.front());
+        _tasks.pop();
     }
 }
 
-void simple_thread_pool::enqueue(void (*fn)())
-{
-    assert(fn);
-
-    static_assert(sizeof(fn) == sizeof(void*));
-    enqueue({
-        .data = reinterpret_cast<void*>(fn),
-        .execute = [] (void* data) {
-            std::invoke(reinterpret_cast<void(*)()>(data));
-        },
-    });
-}
-
-void simple_thread_pool::enqueue(task t)
+void thread_pool::enqueue(task t)
 {
     std::unique_lock lock {_mtx};
-    _queue.emplace(t);
+
+    _tasks.push(t);
     _cv.notify_one();
 }
 
-auto simple_thread_pool::dequeue() -> task
+void thread_pool::enqueue_urgent(task t)
+{
+    std::unique_lock lock {_mtx};
+
+    _urgent_tasks.push(t);
+    _cv.notify_one();
+}
+
+void thread_pool::enqueue(time_point_t deadline, task t)
+{
+    std::unique_lock lock {_timed_mtx};
+
+    _timed_queue.push({ t, deadline });
+    _timed_cv.notify_one();
+}
+
+task thread_pool::dequeue()
 {
     std::unique_lock lock {_mtx};
     _cv.wait(lock, [this] {
-        return !_queue.empty();
+        return !_urgent_tasks.empty() || !_tasks.empty() || _should_stop.test();
     });
 
-    auto task = std::move(_queue.front());
-    _queue.pop();
-    return task;
+    if (_should_stop.test()) {
+        return {};
+    }
+
+    auto& q = _urgent_tasks.empty()
+        ? _tasks
+        : _urgent_tasks;
+
+    auto t = std::move(q.front());
+    q.pop();
+    return t;
 }
 
-void simple_thread_pool::worker()
+void thread_pool::worker()
 {
     for (;;) {
         auto task = dequeue();
-        if (!task.execute) {
+        if (!task.obj) {
             break;
         }
 
@@ -78,12 +107,55 @@ void simple_thread_pool::worker()
     }
 }
 
-void simple_thread_pool::execute(task t)
+void thread_pool::timed_worker()
 {
-    assert(t.execute);
-    assert(t.data);
+    for (;;) {
+        std::unique_lock lock { _timed_mtx };
 
-    t.execute(t.data);
+        const auto tp = _timed_queue.empty()
+            ? time_point_t::max()
+            : _timed_queue.top().deadline;
+
+        _timed_cv.wait_until(lock, tp, [this] {
+            return _should_stop.test();
+        });
+
+        if (_should_stop.test()) {
+            break;
+        }
+
+        auto now = clock_t::now();
+
+        while (!_timed_queue.empty() && _timed_queue.top().deadline <= now) {
+            enqueue_urgent(_timed_queue.top());
+            _timed_queue.pop();
+        }
+    }
 }
 
-}   // namespace execution
+void thread_pool::discard(task t)
+{
+    assert(t.obj);
+
+    if (t.discard) {
+        t.discard(t.obj);
+    }
+}
+
+void thread_pool::execute(task t)
+{
+    assert(t.obj);
+
+    if (!t.execute) {
+        std::invoke(reinterpret_cast<void(*)()>(t.obj));
+    } else {
+        t.execute(t.obj);
+    }
+}
+
+auto thread_pool::get_scheduler() noexcept -> scheduler
+{
+    return scheduler{this};
+}
+
+}   // namespace execution::simple_thread_pool_impl

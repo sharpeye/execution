@@ -1,11 +1,17 @@
-#include "test_receiver.hpp"
+#include <execution/stop_when.hpp>
 
 #include <execution/just.hpp>
-#include <execution/stop_when.hpp>
+#include <execution/null_receiver.hpp>
+#include <execution/schedule.hpp>
+#include <execution/simple_thread_pool.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
 
 #include <gtest/gtest.h>
+
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 using namespace execution;
 
@@ -18,7 +24,7 @@ TEST(stop_when, traits)
 
     constexpr auto s0_type = meta::atom<decltype(s0)>{};
     constexpr auto s1_type = meta::atom<decltype(s1)>{};
-    constexpr auto receiver_type = meta::atom<test_receiver<>>{};
+    constexpr auto receiver_type = meta::atom<null_receiver>{};
 
     static_assert(traits::sender_errors(s0_type, receiver_type)
         == meta::list<std::exception_ptr>{});
@@ -39,4 +45,22 @@ TEST(stop_when, simple)
     );
 
     EXPECT_EQ(42, r);
+}
+
+TEST(stop_when, stopped)
+{
+    // TODO
+    // simple_thread_pool pool{2};
+    // auto sched = pool.get_scheduler();
+
+    // auto r = this_thread::sync_wait(
+    //     stop_when(
+    //         schedule_after(sched, 100ms) | then([] {
+    //             return 0;
+    //         }),
+    //         just(42)
+    //     )
+    // );
+
+    // EXPECT_FALSE(r.has_value());
 }
