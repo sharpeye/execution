@@ -109,11 +109,16 @@ class operation
     {
         source_operation_t _source;
         trigger_operation_t _trigger;
+        std::stop_callback<cancel_callback> _stop_callback;
 
         std::stop_source _stop_source;
-        std::optional<std::stop_callback<cancel_callback>> _stop_callback;
-
         std::atomic<int> _active_ops = 2;
+
+        operations(auto&& src, auto&& tgr, auto&& token, cancel_callback cb)
+            : _source{std::forward<decltype(src)>(src)}
+            , _trigger{std::forward<decltype(tgr)>(tgr)}
+            , _stop_callback{std::forward<decltype(token)>(token), cb}
+        {}
     };
 
     using state_t = std::variant<std::monostate, operations>;
@@ -168,10 +173,7 @@ public:
 
         auto& ops = _state.template emplace<operations>(
             execution::connect(std::move(src), source_receiver<self_t>{this}),
-            execution::connect(std::move(trigger), trigger_receiver<self_t>{this})
-        );
-
-        ops._stop_callback.emplace(
+            execution::connect(std::move(trigger), trigger_receiver<self_t>{this}),
             execution::get_stop_token(_receiver),
             cancel_callback{this}
         );
@@ -221,7 +223,6 @@ public:
         ops._stop_source.request_stop();
 
         if (ops._active_ops.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-            ops._stop_callback.reset();
             finish();
         }
     }
@@ -257,10 +258,15 @@ public:
 
     void finish()
     {
+        // reset callback
+        _state = std::monostate{};
+
         try {
             std::visit([this] (auto&& tuple) {
                 std::apply(
-                    [this] (auto&& ... values) { set_by_tag(std::move(values)...); },
+                    [this] (auto&& ... values) {
+                        set_by_tag(std::move(values)...);
+                    },
                     std::move(tuple)
                 );
             }, std::move(_storage));

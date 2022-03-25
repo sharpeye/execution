@@ -72,7 +72,7 @@ void thread_pool::enqueue(time_point_t deadline, task t)
     std::unique_lock lock {_timed_mtx};
 
     _timed_queue.push({ t, deadline });
-    _timed_cv.notify_one();
+    _timed_cv.notify_all();
 }
 
 task thread_pool::dequeue()
@@ -116,8 +116,9 @@ void thread_pool::timed_worker()
             ? time_point_t::max()
             : _timed_queue.top().deadline;
 
-        _timed_cv.wait_until(lock, tp, [this] {
-            return _should_stop.test();
+        _timed_cv.wait_until(lock, tp, [this, tp] {
+            return _should_stop.test()
+                || (!_timed_queue.empty() && _timed_queue.top().deadline < tp);
         });
 
         if (_should_stop.test()) {

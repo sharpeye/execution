@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sender_traits.hpp"
+#include "stop_token.hpp"
 #include "variant.hpp"
 
 #include <functional>
@@ -31,6 +32,11 @@ struct receiver
     void set_stopped()
     {
         _operation->set_stopped();
+    }
+
+    auto get_stop_token()
+    {
+        return _operation->get_stop_token();
     }
 };
 
@@ -99,6 +105,11 @@ struct operation
     void set_stopped()
     {
         execution::set_stopped(std::move(_receiver));
+    }
+
+    auto get_stop_token()
+    {
+        return execution::get_stop_token(_receiver);
     }
 
     template <int i>

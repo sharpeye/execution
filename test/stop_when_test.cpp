@@ -49,18 +49,17 @@ TEST(stop_when, simple)
 
 TEST(stop_when, stopped)
 {
-    // TODO
-    // simple_thread_pool pool{2};
-    // auto sched = pool.get_scheduler();
+    simple_thread_pool pool{2};
+    auto sched = pool.get_scheduler();
 
-    // auto r = this_thread::sync_wait(
-    //     stop_when(
-    //         schedule_after(sched, 100ms) | then([] {
-    //             return 0;
-    //         }),
-    //         just(42)
-    //     )
-    // );
+    auto r = this_thread::sync_wait(
+        stop_when(
+            schedule_after(sched, 100ms) | then([] {
+                return 0;
+            }),
+            just(42)
+        )
+    );
 
-    // EXPECT_FALSE(r.has_value());
+    EXPECT_FALSE(r.has_value());
 }
