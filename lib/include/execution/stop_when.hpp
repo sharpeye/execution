@@ -39,8 +39,15 @@ struct source_receiver
         _operation->set_stopped();
     }
 
-    auto get_stop_token() const noexcept {
-        return _operation->get_stop_token();
+    friend auto tag_invoke(tag_t<get_stop_token>, const source_receiver<T>& self) noexcept
+    {
+        return self._operation->get_stop_token();
+    }
+
+    template <typename Tag, typename ... Ts>
+    friend auto tag_invoke(Tag tag, const source_receiver<T>& self, Ts&& ... args)
+    {
+        return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
     }
 };
 
@@ -68,8 +75,15 @@ struct trigger_receiver
         _operation->notify_operation_complete();
     }
 
-    auto get_stop_token() const noexcept {
-        return _operation->get_stop_token();
+    friend auto tag_invoke(get_stop_token_fn, const trigger_receiver<T>& self) noexcept
+    {
+        return self._operation->get_stop_token();
+    }
+
+    template <typename Tag, typename ... Ts>
+    friend auto tag_invoke(Tag tag, const trigger_receiver<T>& self, Ts&& ... args)
+    {
+        return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
     }
 };
 
@@ -278,6 +292,11 @@ public:
     auto get_stop_token() const noexcept {
         auto& ops = std::get<operations>(_state);
         return ops._stop_source.get_token();
+    }
+
+    auto const& get_receiver() const noexcept
+    {
+        return _receiver;
     }
 };
 

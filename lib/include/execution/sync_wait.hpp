@@ -4,6 +4,7 @@
 #include "pipeable.hpp"
 #include "sender_traits.hpp"
 #include "tuple.hpp"
+#include "stop_token.hpp"
 
 #include <exception>
 #include <future>

@@ -17,10 +17,11 @@ template <typename ... Ts>
 struct signature
 {};
 
-constexpr auto to_signature = [] <typename ... Ts> (meta::atom<Ts>...) consteval
+template <typename ... Ts>
+consteval auto to_signature(meta::atom<Ts>...)
 {
     return meta::atom<signature<Ts...>>{};
-};
+}
 
 namespace traits {
 

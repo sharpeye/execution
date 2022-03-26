@@ -8,6 +8,7 @@
 #include <functional>
 
 namespace execution {
+
 namespace then_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,12 +18,6 @@ struct then_receiver
 {
     F _func;
     R _receiver;
-
-    template <typename U>
-    then_receiver(F&& func, U&& receiver)
-        : _func(std::move(func))
-        , _receiver(std::forward<U>(receiver))
-    {}
 
     template <typename ... Ts>
     void set_value(Ts&& ... values)
@@ -45,9 +40,10 @@ struct then_receiver
         execution::set_stopped(std::move(_receiver));
     }
 
-    auto get_stop_token()
+    template <typename Tag, typename ... Ts>
+    friend auto tag_invoke(Tag tag, const then_receiver<F, R>& self, Ts&& ... args)
     {
-        return execution::get_stop_token(_receiver);
+        return tag(self._receiver, std::forward<Ts>(args)...);
     }
 };
 

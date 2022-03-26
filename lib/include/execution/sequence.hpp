@@ -1,7 +1,6 @@
 #pragma once
 
 #include "sender_traits.hpp"
-#include "stop_token.hpp"
 #include "variant.hpp"
 
 #include <functional>
@@ -34,9 +33,10 @@ struct receiver
         _operation->set_stopped();
     }
 
-    auto get_stop_token()
+    template <typename Tag, typename ... Ts>
+    friend auto tag_invoke(Tag tag, const receiver<T, index>& self, Ts&& ... args)
     {
-        return _operation->get_stop_token();
+        return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
     }
 };
 
@@ -107,11 +107,6 @@ struct operation
         execution::set_stopped(std::move(_receiver));
     }
 
-    auto get_stop_token()
-    {
-        return execution::get_stop_token(_receiver);
-    }
-
     template <int i>
     void start_next()
     {
@@ -121,6 +116,11 @@ struct operation
         ));
 
         op.start();
+    }
+
+    auto const& get_receiver() const noexcept
+    {
+        return _receiver;
     }
 };
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "forward_receiver.hpp"
 #include "pipeable.hpp"
 #include "sender_traits.hpp"
 #include "tuple.hpp"
@@ -11,6 +10,37 @@
 
 namespace execution {
 namespace let_value_impl {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct forward_receiver
+{
+    T* _operation;
+
+    template <typename ... Ts>
+    void set_value(Ts&& ... values)
+    {
+        _operation->set_value(std::forward<Ts>(values)...);
+    }
+
+    template <typename E>
+    void set_error(E&& error)
+    {
+        _operation->set_error(std::forward<E>(error));
+    }
+
+    void set_stopped()
+    {
+        _operation->set_stopped();
+    }
+
+    template <typename Tag, typename ... Ts>
+    friend auto tag_invoke(Tag tag, const forward_receiver<T>& self, Ts&& ... args)
+    {
+        return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +136,11 @@ struct operation
     void set_stopped()
     {
         execution::set_stopped(std::move(_receiver));
+    }
+
+    auto const& get_receiver() const noexcept
+    {
+        return _receiver;
     }
 };
 
