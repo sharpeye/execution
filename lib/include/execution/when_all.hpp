@@ -38,6 +38,11 @@ struct receiver
         _operation->set_stopped();
     }
 
+    friend auto tag_invoke(tag_t<get_stop_token>, const receiver<T, index>& self) noexcept
+    {
+        return self._operation->get_stop_token();
+    }
+
     template <typename Tag, typename ... Ts>
     friend auto tag_invoke(Tag tag, const receiver<T, index>& self, Ts&& ... args)
     {
@@ -242,6 +247,11 @@ struct operation
     auto& get_operations()
     {
         return std::get<1>(_state);
+    }
+
+    auto get_stop_token() const noexcept
+    {
+        return get_operations()._stop_source.get_token();
     }
 };
 
