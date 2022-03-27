@@ -67,18 +67,18 @@ struct operation
             return traits::invoke_result(factory_type, sig);
         });
 
-    using state_t = variant_t<decltype(
+    using state_t = variant_t<
           predecessor_type
         | predecessor_operation_type
         | meta::transform(successor_types, [] (auto s) {
             return traits::sender_operation(s, receiver_type);
         })
-    )>;
+    >;
 
-    using values_t = variant_t<decltype(
+    using values_t = variant_t<
           meta::atom<std::monostate>{}
         | meta::transform(predecessor_value_types, meta::convert_to<decayed_tuple_t>)
-    )>;
+    >;
 
     F _factory;
     R _receiver;

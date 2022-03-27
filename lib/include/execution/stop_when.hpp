@@ -156,12 +156,12 @@ class operation
         }
     );
 
-    using storage_t = variant_t<decltype(
+    using storage_t = variant_t<
           meta::atom<std::tuple<init_tag, S, T>>{}
         | meta::atom<std::tuple<stopped_tag>>{}
         | value_types
         | error_types
-    )>;
+    >;
 
 private:
     R _receiver;

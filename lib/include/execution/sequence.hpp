@@ -61,10 +61,10 @@ struct operation
             );
         });
 
-    using state_t = variant_t<decltype(
+    using state_t = variant_t<
           operation_types
         | meta::atom<std::monostate>{}
-    )>;
+    >;
 
     R _receiver;
     std::tuple<Ts...> _senders;

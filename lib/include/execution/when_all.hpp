@@ -95,7 +95,7 @@ struct operation
     using storage_t = tuple_t<
         meta::zip_transform(sender_types, receiver_types, [] (auto s, auto r) {
             return meta::atom<
-                variant_t<decltype(s | as_tuple(traits::sender_values(s, r).head))>
+                variant_t<s | as_tuple(traits::sender_values(s, r).head)>
             >{};
         })>;
 
@@ -131,7 +131,7 @@ struct operation
     storage_t _storage;
 
     std::atomic_flag _error_or_stopped = ATOMIC_FLAG_INIT;
-    std::optional<variant_t<decltype(error_types)>> _error;
+    std::optional<variant_t<error_types>> _error;
 
     template <typename Rx, typename S>
     operation(Rx&& receiver, S&& senders)
