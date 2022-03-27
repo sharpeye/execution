@@ -17,10 +17,35 @@ template <typename ... Ts>
 struct signature
 {};
 
+template <typename L>
+struct signature_from_list;
+
+template <typename ... Ts>
+struct signature_from_list<meta::list<Ts...>>
+{
+    using type = signature<Ts...>;
+};
+
 template <typename ... Ts>
 consteval auto to_signature(meta::atom<Ts>...)
 {
-    return meta::atom<signature<Ts...>>{};
+    return meta::atom<typename signature_from_list<
+        decltype(meta::remove(meta::list<Ts...>{}, meta::none))
+    >::type>{};
+}
+
+template <typename ... Ts>
+consteval auto to_signature(meta::list<Ts...> ls)
+{
+    return meta::atom<typename signature_from_list<
+        decltype(meta::remove(ls, meta::none))
+    >::type>{};
+}
+
+template <typename ... Ts>
+consteval auto to_list(meta::atom<signature<Ts...>>)
+{
+    return meta::list<Ts...>{};
 }
 
 namespace traits {

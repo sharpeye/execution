@@ -18,6 +18,6 @@ struct variant<meta::list<Ts...>>
 };
 
 template <typename L>
-using variant_t = typename variant<L>::type;
+using variant_t = typename variant<std::decay_t<L>>::type;
 
 }   // namespace execution

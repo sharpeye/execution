@@ -77,7 +77,7 @@ struct operation
         , _state(std::in_place_type<std::monostate>)
     {}
 
-    void start()
+    void start() &
     {
         start_next<0>();
     }
@@ -184,7 +184,7 @@ struct sender_traits
         using operation_t = operation<R, T, Ts...>;
 
         static constexpr auto receiver_type = meta::atom<R>{};
-        static constexpr auto operation_type = meta::atom<operation<R, T, Ts...>>{};
+        static constexpr auto operation_type = meta::atom<operation_t>{};
         static constexpr auto receiver_types = meta::transform(
             indices,
             [] (auto index) {

@@ -302,4 +302,24 @@ consteval bool is_all(list<Ts...> ls, F func)
     return (func(atom<Ts>{}) && ...);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename L1, typename L2, typename F>
+consteval auto zip_transform(L1 l1, L2 l2, F fn)
+{
+    static_assert(l1.length == l2.length);
+
+    if constexpr (l1.is_empty) {
+        return l1;
+    } else {
+        return fn(l1.head, l2.head) | zip_transform(l1.tail, l2.tail, fn);
+    }
+}
+
+template <typename L1, typename L2, typename F>
+consteval auto zip_transform_unique(L1 l1, L2 l2, F fn)
+{
+    return unique(zip_transform(l1, l2, fn));
+}
+
 }   // namespace execution::meta
