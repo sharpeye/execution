@@ -52,23 +52,26 @@ namespace traits {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename S, typename R>
-consteval auto sender_operation(meta::atom<S>, meta::atom<R>)
+constexpr auto sender_operation = [] <typename S, typename R> (
+    meta::atom<S>,
+    meta::atom<R>) consteval
 {
     return sender_traits<S>::template with<R>::operation_type;
-}
+};
 
-template <typename S, typename R>
-consteval auto sender_errors(meta::atom<S>, meta::atom<R>)
+constexpr auto sender_errors = [] <typename S, typename R> (
+    meta::atom<S>,
+    meta::atom<R>) consteval
 {
     return sender_traits<S>::template with<R>::error_types;
-}
+};
 
-template <typename S, typename R>
-consteval auto sender_values(meta::atom<S>, meta::atom<R>)
+constexpr auto sender_values = [] <typename S, typename R> (
+    meta::atom<S>,
+    meta::atom<R>) consteval
 {
     return sender_traits<S>::template with<R>::value_types;
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

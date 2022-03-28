@@ -52,14 +52,8 @@ struct operation
         [] (auto index) {
             return meta::atom<receiver<operation, index>>{};
         });
-    static constexpr auto operation_types = meta::transform(
-        indices,
-        [] (auto index) {
-            return traits::sender_operation(
-                sender_types[index],
-                receiver_types[index]
-            );
-        });
+    static constexpr auto operation_types = meta::zip_transform(
+        sender_types, receiver_types, traits::sender_operation);
 
     using state_t = variant_t<
           operation_types
@@ -196,13 +190,8 @@ struct sender_traits
             meta::last(receiver_types)
         );
 
-        static constexpr auto error_types = meta::transform_unique(
-            indices, [] (auto index) {
-                return traits::sender_errors(
-                    sender_types[index],
-                    receiver_types[index]
-                );
-            });
+        static constexpr auto error_types = meta::zip_transform_unique(
+            sender_types, receiver_types, traits::sender_errors);
     };
 };
 

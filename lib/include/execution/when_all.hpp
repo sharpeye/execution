@@ -73,16 +73,10 @@ struct operation
     }));
 
     static constexpr auto operation_types = meta::zip_transform(
-        sender_types, receiver_types,
-        [] (auto s, auto r) {
-            return traits::sender_operation(s, r);
-        });
+        sender_types, receiver_types, traits::sender_operation);
 
     static constexpr auto error_types = meta::zip_transform_unique(
-        sender_types, receiver_types,
-        [] (auto s, auto r) {
-            return traits::sender_errors(s, r);
-        });
+        sender_types, receiver_types, traits::sender_errors);
 
     static constexpr auto value_types = meta::list<>{} |
         to_signature(meta::zip_transform(sender_types, receiver_types,
@@ -336,9 +330,7 @@ struct sender_traits
             ));
 
         static constexpr auto error_types = meta::zip_transform_unique(
-            sender_types, receiver_types, [] (auto s, auto r) {
-                return traits::sender_errors(s, r);
-            });
+            sender_types, receiver_types, traits::sender_errors);
     };
 };
 
