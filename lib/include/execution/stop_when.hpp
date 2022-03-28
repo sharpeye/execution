@@ -15,12 +15,15 @@
 namespace execution {
 namespace stop_when_impl {
 
+template <typename S, typename T, typename R>
+class operation;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <typename S, typename T, typename R>
 struct source_receiver
 {
-    T* _operation;
+    operation<S, T, R>* _operation;
 
     template <typename ... Ts>
     void set_value(Ts&& ... values)
@@ -39,13 +42,17 @@ struct source_receiver
         _operation->set_stopped();
     }
 
-    friend auto tag_invoke(tag_t<get_stop_token>, const source_receiver<T>& self) noexcept
+    // tag_invoke
+
+    friend auto tag_invoke(tag_t<get_stop_token>, const source_receiver<S, T, R>& self) noexcept
     {
         return self._operation->get_stop_token();
     }
 
     template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, const source_receiver<T>& self, Ts&& ... args)
+    friend auto tag_invoke(Tag tag, const source_receiver<S, T, R>& self, Ts&& ... args)
+        noexcept(is_nothrow_tag_invocable_v<Tag, R, Ts...>)
+        -> tag_invoke_result_t<Tag, R, Ts...>
     {
         return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
     }
@@ -53,10 +60,10 @@ struct source_receiver
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <typename S, typename T, typename R>
 struct trigger_receiver
 {
-    T* _operation;
+    operation<S, T, R>* _operation;
 
     template <typename ... Ts>
     void set_value(Ts&& ...)
@@ -75,13 +82,17 @@ struct trigger_receiver
         _operation->notify_operation_complete();
     }
 
-    friend auto tag_invoke(get_stop_token_fn, const trigger_receiver<T>& self) noexcept
+    // tag_invoke
+
+    friend auto tag_invoke(tag_t<get_stop_token>, const trigger_receiver<S, T, R>& self) noexcept
     {
         return self._operation->get_stop_token();
     }
 
     template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, const trigger_receiver<T>& self, Ts&& ... args)
+    friend auto tag_invoke(Tag tag, const trigger_receiver<S, T, R>& self, Ts&& ... args)
+        noexcept(is_nothrow_tag_invocable_v<Tag, R, Ts...>)
+        -> tag_invoke_result_t<Tag, R, Ts...>
     {
         return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
     }
@@ -92,13 +103,14 @@ struct trigger_receiver
 template <typename S, typename T, typename R>
 class operation
 {
-    using self_t = operation<S, T, R>;
+    using source_receiver_t = source_receiver<S, T, R>;
+    using trigger_receiver_t = trigger_receiver<S, T, R>;
 
     static constexpr auto source_type = meta::atom<S>{};
     static constexpr auto trigger_type = meta::atom<T>{};
 
-    static constexpr auto source_receiver_type = meta::atom<source_receiver<self_t>>{};
-    static constexpr auto trigger_receiver_type = meta::atom<trigger_receiver<self_t>>{};
+    static constexpr auto source_receiver_type = meta::atom<source_receiver_t>{};
+    static constexpr auto trigger_receiver_type = meta::atom<trigger_receiver_t>{};
 
     static constexpr auto source_operation_type = traits::sender_operation(
         source_type, source_receiver_type);
@@ -186,8 +198,8 @@ public:
         auto&& [tag, src, trigger] = std::get<0>(std::move(_storage));
 
         auto& ops = _state.template emplace<operations>(
-            execution::connect(std::move(src), source_receiver<self_t>{this}),
-            execution::connect(std::move(trigger), trigger_receiver<self_t>{this}),
+            execution::connect(std::move(src), source_receiver_t{this}),
+            execution::connect(std::move(trigger), trigger_receiver_t{this}),
             execution::get_stop_token(_receiver),
             cancel_callback{this}
         );

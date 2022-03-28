@@ -41,9 +41,11 @@ struct then_receiver
     }
 
     template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, const then_receiver<F, R>& self, Ts&& ... args)
+    friend auto tag_invoke(Tag tag, then_receiver<F, R> const& self, Ts&& ... args)
+        noexcept(is_nothrow_tag_invocable_v<Tag, R, Ts...>)
+        -> tag_invoke_result_t<Tag, R, Ts...>
     {
-        return tag(self._receiver, std::forward<Ts>(args)...);
+        return std::invoke(tag, self._receiver, std::forward<Ts>(args)...);
     }
 };
 

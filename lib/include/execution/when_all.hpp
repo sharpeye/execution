@@ -11,20 +11,24 @@
 #include <optional>
 
 namespace execution {
-
 namespace when_all_impl {
+
+template <typename R, typename ... Ts>
+struct operation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, auto index>
+template <auto index, typename R, typename ... Ts>
 struct receiver
 {
-    T* _operation;
+    using self_t = receiver<index, R, Ts...>;
 
-    template <typename ... Ts>
-    void set_value(Ts&& ... values)
+    operation<R, Ts...>* _operation;
+
+    template <typename ... Us>
+    void set_value(Us&& ... values)
     {
-        _operation->set_value(index, std::forward<Ts>(values)...);
+        _operation->set_value(index, std::forward<Us>(values)...);
     }
 
     template <typename E>
@@ -38,15 +42,19 @@ struct receiver
         _operation->set_stopped();
     }
 
-    friend auto tag_invoke(tag_t<get_stop_token>, const receiver<T, index>& self) noexcept
+    // tag_invoke
+
+    friend auto tag_invoke(tag_t<get_stop_token>, const self_t& self) noexcept
     {
         return self._operation->get_stop_token();
     }
 
-    template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, const receiver<T, index>& self, Ts&& ... args)
+    template <typename Tag, typename ... Us>
+    friend auto tag_invoke(Tag tag, const self_t& self, Us&& ... args)
+        noexcept(is_nothrow_tag_invocable_v<Tag, R, Us...>)
+        -> tag_invoke_result_t<Tag, R, Us...>
     {
-        return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
+        return tag(self._operation->get_receiver(), std::forward<Us>(args)...);
     }
 };
 
@@ -57,12 +65,15 @@ struct operation
 {
     using self_t = operation<R, Ts...>;
 
+    template <auto index>
+    using receiver_t = receiver<index, R, Ts...>;
+
     static constexpr auto indices = meta::iota<sizeof ... (Ts)>;
     static constexpr auto sender_types = meta::list<Ts...>{};
     static constexpr auto receiver_types = meta::transform(
         indices,
         [] (auto index) {
-            return meta::atom<receiver<operation, index>>{};
+            return meta::atom<receiver_t<index>>{};
         });
 
     static_assert(meta::is_all(indices, [] (auto index) {
@@ -151,7 +162,7 @@ struct operation
             cancel_callback{this},
             execution::connect(
                 std::get<0>(std::get<Is>(std::move(_storage))),
-                receiver<self_t, meta::index_t<Is>{}>{this})...
+                receiver_t<meta::index_t<Is>{}>{this})...
         );
 
         (execution::start(std::get<Is>(ops._operations)), ...);
@@ -238,14 +249,14 @@ struct operation
         return _receiver;
     }
 
-    auto& get_operations()
+    operations& get_operations()
     {
         return std::get<1>(_state);
     }
 
     auto get_stop_token() const noexcept
     {
-        return get_operations()._stop_source.get_token();
+        return std::get<1>(_state)._stop_source.get_token();
     }
 };
 
@@ -319,7 +330,7 @@ struct sender_traits
         static constexpr auto receiver_types = meta::transform(
             indices,
             [] (auto index) {
-                return meta::atom<receiver<operation_t, index>>{};
+                return meta::atom<receiver<index, R, Ts...>>{};
             });
 
         static constexpr auto value_types = meta::list<>{} |

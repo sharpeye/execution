@@ -9,17 +9,22 @@
 namespace execution {
 namespace sequence_impl {
 
+template <typename R, typename ... Ts>
+struct operation;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, auto index>
+template <auto index, typename R, typename ... Ts>
 struct receiver
 {
-    T* _operation;
+    using self_t = receiver<index, R, Ts...>;
 
-    template <typename ... Ts>
-    void set_value(Ts&& ... values)
+    operation<R, Ts...>* _operation;
+
+    template <typename ... Us>
+    void set_value(Us&& ... values)
     {
-        _operation->set_value(index, std::forward<Ts>(values)...);
+        _operation->set_value(index, std::forward<Us>(values)...);
     }
 
     template <typename E>
@@ -33,10 +38,14 @@ struct receiver
         _operation->set_stopped();
     }
 
-    template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, const receiver<T, index>& self, Ts&& ... args)
+    // tag_invoke
+
+    template <typename Tag, typename ... Us>
+    friend auto tag_invoke(Tag tag, const self_t& self, Us&& ... args)
+        noexcept(is_nothrow_tag_invocable_v<Tag, R, Us...>)
+        -> tag_invoke_result_t<Tag, R, Us...>
     {
-        return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
+        return tag(self._operation->get_receiver(), std::forward<Us>(args)...);
     }
 };
 
@@ -45,12 +54,15 @@ struct receiver
 template <typename R, typename ... Ts>
 struct operation
 {
+    template <auto index>
+    using receiver_t = receiver<index, R, Ts...>;
+
     static constexpr auto indices = meta::iota<sizeof ... (Ts)>;
     static constexpr auto sender_types = meta::list<Ts...>{};
     static constexpr auto receiver_types = meta::transform(
         indices,
         [] (auto index) {
-            return meta::atom<receiver<operation, index>>{};
+            return meta::atom<receiver_t<index>>{};
         });
     static constexpr auto operation_types = meta::zip_transform(
         sender_types, receiver_types, traits::sender_operation);
@@ -106,7 +118,7 @@ struct operation
     {
         auto& op = _state.template emplace<i>(execution::connect(
             std::get<i>(std::move(_senders)),
-            receiver<operation, meta::index_t<i>{}>{this}
+            receiver_t<meta::index_t<i>{}>{this}
         ));
 
         op.start();
@@ -166,23 +178,21 @@ struct sequence
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename ... Ts>
+template <typename ... Ts>
 struct sender_traits
 {
-    static constexpr auto sender_types = meta::list<T, Ts...>{};
-    static constexpr auto indices = meta::iota<1 + sizeof ... (Ts)>;
+    static constexpr auto sender_types = meta::list<Ts...>{};
+    static constexpr auto indices = meta::iota<sizeof ... (Ts)>;
 
     template <typename R>
     struct with
     {
-        using operation_t = operation<R, T, Ts...>;
-
         static constexpr auto receiver_type = meta::atom<R>{};
-        static constexpr auto operation_type = meta::atom<operation_t>{};
+        static constexpr auto operation_type = meta::atom<operation<R, Ts...>>{};
         static constexpr auto receiver_types = meta::transform(
             indices,
             [] (auto index) {
-                return meta::atom<receiver<operation_t, index>>{};
+                return meta::atom<receiver<index, R, Ts...>>{};
             });
 
         static constexpr auto value_types = traits::sender_values(

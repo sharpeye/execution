@@ -1,5 +1,6 @@
 #pragma once
 
+#include "customization.hpp"
 #include "pipeable.hpp"
 #include "sender_traits.hpp"
 #include "tuple.hpp"
@@ -11,12 +12,15 @@
 namespace execution {
 namespace let_value_impl {
 
+template <typename P, typename F, typename R>
+struct operation;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <typename P, typename F, typename R>
 struct forward_receiver
 {
-    T* _operation;
+    operation<P, F, R>* _operation;
 
     template <typename ... Ts>
     void set_value(Ts&& ... values)
@@ -35,8 +39,12 @@ struct forward_receiver
         _operation->set_stopped();
     }
 
+    // tag_invoke
+
     template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, const forward_receiver<T>& self, Ts&& ... args)
+    friend auto tag_invoke(Tag tag, const forward_receiver<P, F, R>& self, Ts&& ... args)
+        noexcept(is_nothrow_tag_invocable_v<Tag, R, Ts...>)
+        -> tag_invoke_result_t<Tag, R, Ts...>
     {
         return tag(self._operation->get_receiver(), std::forward<Ts>(args)...);
     }
@@ -47,13 +55,13 @@ struct forward_receiver
 template <typename P, typename F, typename R>
 struct operation
 {
-    using self_t = operation<P, F, R>;
+    using forward_receiver_t = forward_receiver<P, F, R>;
 
     static constexpr auto predecessor_type = meta::atom<P>{};
     static constexpr auto factory_type = meta::atom<F>{};
     static constexpr auto receiver_type = meta::atom<R>{};
 
-    static constexpr auto predecessor_receiver_type = meta::atom<forward_receiver<self_t>>{};
+    static constexpr auto predecessor_receiver_type = meta::atom<forward_receiver_t>{};
     static constexpr auto predecessor_operation_type = traits::sender_operation(
         predecessor_type,
         predecessor_receiver_type);
@@ -95,12 +103,11 @@ struct operation
     void start()
     {
         using operation_t = typename decltype(predecessor_operation_type)::type;
-        using receiver_t = typename decltype(predecessor_receiver_type)::type;
 
         auto& op = _state.template emplace<operation_t>(
             execution::connect(
                 std::get<P>(std::move(_state)),
-                receiver_t{this}
+                forward_receiver_t{this}
             ));
 
         execution::start(op);
@@ -214,7 +221,7 @@ struct sender_traits
         static constexpr auto operation_type = meta::atom<operation<P, F, R>>{};
 
         static constexpr auto predecessor_receiver_type = meta::atom<
-            forward_receiver<operation<P, F, R>>>{};
+            forward_receiver<P, F, R>>{};
 
         static constexpr auto successor_types = meta::transform_unique(
             traits::sender_values(predecessor_type, receiver_type),

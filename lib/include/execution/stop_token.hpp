@@ -12,12 +12,11 @@ namespace execution {
 inline constexpr struct get_stop_token_fn
 {
     // default implementation
-    template <typename R>
-        requires (!is_tag_invocable_v<get_stop_token_fn, R const&>)
-    auto operator () (R const&) const noexcept
-        -> std::stop_token
+   template <typename R>
+        requires (!is_tag_invocable_v<get_stop_token_fn, R>)
+    auto operator () (R&&) const noexcept
     {
-        return {};
+        return std::stop_token{};
     }
 
     template <typename R>
