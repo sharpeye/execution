@@ -96,13 +96,10 @@ struct sender_traits
     struct with
     {
         using operation_t = operation<R, std::tuple<Ts...>>;
-
-        static constexpr auto operation_type = meta::atom<operation_t>{};
-        static constexpr auto value_types = meta::list<signature<Ts...>>{};
-        static constexpr auto error_types =
+        using values_t = meta::list<signature<Ts...>>;
+        using errors_t =
             // TODO
-            meta::list<std::exception_ptr>{}
-            ;
+            meta::list<std::exception_ptr>;
     };
 };
 

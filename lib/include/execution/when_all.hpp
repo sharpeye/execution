@@ -342,6 +342,9 @@ struct sender_traits
 
         static constexpr auto error_types = meta::zip_transform_unique(
             sender_types, receiver_types, traits::sender_errors);
+
+        using errors_t = decltype(error_types);
+        using values_t = decltype(value_types);
     };
 };
 

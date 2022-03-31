@@ -149,6 +149,10 @@ struct sender_traits
                     return meta::list<std::exception_ptr>{};
                 }
             } ());
+
+        using operation_t = typename decltype(operation_type)::type;
+        using errors_t = decltype(error_types);
+        using values_t = decltype(value_types);
     };
 };
 

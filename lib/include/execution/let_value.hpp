@@ -218,7 +218,6 @@ struct sender_traits
     struct with
     {
         static constexpr auto receiver_type = meta::atom<R>{};
-        static constexpr auto operation_type = meta::atom<operation<P, F, R>>{};
 
         static constexpr auto predecessor_receiver_type = meta::atom<
             forward_receiver<P, F, R>>{};
@@ -257,6 +256,10 @@ struct sender_traits
                     return meta::list<std::exception_ptr>{};
                 }
             } ());
+
+        using operation_t = operation<P, F, R>;
+        using errors_t = decltype(error_types);
+        using values_t = decltype(value_types);
     };
 };
 

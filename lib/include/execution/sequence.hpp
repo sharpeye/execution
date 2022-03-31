@@ -188,7 +188,6 @@ struct sender_traits
     struct with
     {
         static constexpr auto receiver_type = meta::atom<R>{};
-        static constexpr auto operation_type = meta::atom<operation<R, Ts...>>{};
         static constexpr auto receiver_types = meta::transform(
             indices,
             [] (auto index) {
@@ -202,6 +201,10 @@ struct sender_traits
 
         static constexpr auto error_types = meta::zip_transform_unique(
             sender_types, receiver_types, traits::sender_errors);
+
+        using operation_t = operation<R, Ts...>;
+        using errors_t = decltype(error_types);
+        using values_t = decltype(value_types);
     };
 };
 

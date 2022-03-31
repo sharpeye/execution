@@ -282,9 +282,9 @@ struct sender_traits_base
     template <typename R>
     struct with
     {
-        static constexpr auto operation_type = meta::atom<T<R>>{};
-        static constexpr auto value_types = meta::list<signature<>>{};
-        static constexpr auto error_types = meta::list<std::exception_ptr>{};
+        using operation_t = T<R>;
+        using values_t = meta::list<signature<>>;
+        using errors_t = meta::list<std::exception_ptr>;
     };
 };
 

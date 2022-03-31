@@ -56,21 +56,21 @@ constexpr auto sender_operation = [] <typename S, typename R> (
     meta::atom<S>,
     meta::atom<R>) consteval
 {
-    return sender_traits<S>::template with<R>::operation_type;
+    return meta::atom<typename sender_traits<S>::template with<R>::operation_t>{};
 };
 
 constexpr auto sender_errors = [] <typename S, typename R> (
     meta::atom<S>,
     meta::atom<R>) consteval
 {
-    return sender_traits<S>::template with<R>::error_types;
+    return typename sender_traits<S>::template with<R>::errors_t {};
 };
 
 constexpr auto sender_values = [] <typename S, typename R> (
     meta::atom<S>,
     meta::atom<R>) consteval
 {
-    return sender_traits<S>::template with<R>::value_types;
+    return typename sender_traits<S>::template with<R>::values_t {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -379,7 +379,6 @@ struct sender_traits
     struct with
     {
         static constexpr auto receiver_type = meta::atom<R>{};
-        static constexpr auto operation_type = meta::atom<operation<T, U, R>>{};
 
         static constexpr auto value_types = traits::sender_values(
             source_type, receiver_type);
@@ -388,6 +387,10 @@ struct sender_traits
             traits::sender_errors(source_type, receiver_type),
             meta::list<std::exception_ptr>{}
         );
+
+        using operation_t = operation<T, U, R>;
+        using errors_t = decltype(error_types);
+        using values_t = decltype(value_types);
     };
 };
 
