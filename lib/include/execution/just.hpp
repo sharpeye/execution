@@ -89,27 +89,23 @@ struct just
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts>
+template <typename R, typename ... Ts>
 struct sender_traits
 {
-    template <typename R>
-    struct with
-    {
-        using operation_t = operation<R, std::tuple<Ts...>>;
-        using values_t = meta::list<signature<Ts...>>;
-        using errors_t =
-            // TODO
-            meta::list<std::exception_ptr>;
-    };
+    using operation_t = operation<R, std::tuple<Ts...>>;
+    using values_t = meta::list<signature<Ts...>>;
+    using errors_t =
+        // TODO
+        meta::list<std::exception_ptr>;
 };
 
 }   // namespace just_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts>
-struct sender_traits<just_impl::sender<Ts...>>
-    : just_impl::sender_traits<Ts...>
+template <typename R, typename ... Ts>
+struct sender_traits<just_impl::sender<Ts...>, R>
+    : just_impl::sender_traits<R, Ts...>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////

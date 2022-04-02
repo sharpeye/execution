@@ -18,17 +18,41 @@ struct operation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <auto index, typename R, typename ... Ts>
+constexpr auto when_all_values(auto sender_types, auto receiver_types)
+{
+    constexpr auto values = meta::zip_transform(sender_types, receiver_types,
+        [] (auto s, auto r) {
+            return traits::sender_values(s, r).head;
+        });
+
+    static_assert(values.length == sender_types.length);
+
+    constexpr auto to_signature = [] <typename ... Ts> (meta::list<Ts...>) {
+        return meta::list<signature<Ts...>>{};
+    };
+
+    return to_signature(meta::chain(
+        meta::transform(
+            values,
+            [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
+                return meta::list<Ts...>{};
+            })
+        ));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <int I, typename R, typename ... Ts>
 struct receiver
 {
-    using self_t = receiver<index, R, Ts...>;
+    using self_t = receiver<I, R, Ts...>;
 
     operation<R, Ts...>* _operation;
 
     template <typename ... Us>
     void set_value(Us&& ... values)
     {
-        _operation->set_value(index, std::forward<Us>(values)...);
+        _operation->set_value(meta::index_t<I>{}, std::forward<Us>(values)...);
     }
 
     template <typename E>
@@ -65,15 +89,15 @@ struct operation
 {
     using self_t = operation<R, Ts...>;
 
-    template <auto index>
-    using receiver_t = receiver<index, R, Ts...>;
+    template <int I>
+    using receiver_t = receiver<I, R, Ts...>;
 
     static constexpr auto indices = meta::iota<sizeof ... (Ts)>;
     static constexpr auto sender_types = meta::list<Ts...>{};
     static constexpr auto receiver_types = meta::transform(
         indices,
-        [] (auto index) {
-            return meta::atom<receiver_t<index>>{};
+        [] <int I>(meta::index_t<I>) {
+            return meta::atom<receiver_t<I>>{};
         });
 
     static_assert(meta::is_all(indices, [] (auto index) {
@@ -89,25 +113,23 @@ struct operation
     static constexpr auto error_types = meta::zip_transform_unique(
         sender_types, receiver_types, traits::sender_errors);
 
-    static constexpr auto value_types = meta::list<>{} |
-        to_signature(meta::zip_transform(sender_types, receiver_types,
-            [] (auto s, auto r) {
-                return to_list(traits::sender_values(s, r).head);
-            }
-        ));
+    static constexpr auto value_types = when_all_values(
+        sender_types,
+        receiver_types);
 
     template <typename ... Us>
-    static consteval auto as_tuple(meta::atom<signature<Us...>>)
+    static constexpr auto as_tuple(meta::atom<signature<Us...>>)
     {
         return meta::list<std::tuple<Us...>>{};
     }
 
-    using storage_t = tuple_t<
+    static constexpr auto senders_storage_types =
         meta::zip_transform(sender_types, receiver_types, [] (auto s, auto r) {
-            return meta::atom<
-                variant_t<s | as_tuple(traits::sender_values(s, r).head)>
-            >{};
-        })>;
+            constexpr auto ls = s | as_tuple(traits::sender_values(s, r).head);
+            return meta::atom<variant_t<decltype(ls)>>{};
+        });
+
+    using storage_t = tuple_v<senders_storage_types>;
 
     struct cancel_callback
     {
@@ -121,7 +143,7 @@ struct operation
 
     struct operations
     {
-        tuple_t<operation_types> _operations;
+        tuple_v<operation_types> _operations;
         std::atomic<int> _active_ops = operation_types.length;
 
         std::stop_source _stop_source;
@@ -141,7 +163,7 @@ struct operation
     storage_t _storage;
 
     std::atomic_flag _error_or_stopped = ATOMIC_FLAG_INIT;
-    std::optional<variant_t<error_types>> _error;
+    std::optional<variant_t<decltype(error_types)>> _error;
 
     template <typename Rx, typename S>
     operation(Rx&& receiver, S&& senders)
@@ -162,7 +184,7 @@ struct operation
             cancel_callback{this},
             execution::connect(
                 std::get<0>(std::get<Is>(std::move(_storage))),
-                receiver_t<meta::index_t<Is>{}>{this})...
+                receiver_t<Is>{this})...
         );
 
         (execution::start(std::get<Is>(ops._operations)), ...);
@@ -314,47 +336,40 @@ struct when_all
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts>
+template <typename R, typename ... Ts>
 struct sender_traits
 {
     static constexpr auto sender_types = meta::list<Ts...>{};
     static constexpr auto indices = meta::iota<sizeof ... (Ts)>;
 
-    template <typename R>
-    struct with
-    {
-        using operation_t = operation<R, Ts...>;
+    using operation_t = operation<R, Ts...>;
 
-        static constexpr auto receiver_type = meta::atom<R>{};
-        static constexpr auto operation_type = meta::atom<operation_t>{};
-        static constexpr auto receiver_types = meta::transform(
-            indices,
-            [] (auto index) {
-                return meta::atom<receiver<index, R, Ts...>>{};
-            });
+    static constexpr auto receiver_type = meta::atom<R>{};
+    static constexpr auto operation_type = meta::atom<operation_t>{};
+    static constexpr auto receiver_types = meta::transform(
+        indices,
+        [] <int I>(meta::index_t<I>) {
+            return meta::atom<receiver<I, R, Ts...>>{};
+        });
 
-        static constexpr auto value_types = meta::list<>{} |
-            to_signature(meta::zip_transform(sender_types, receiver_types,
-                [] (auto s, auto r) {
-                    return to_list(traits::sender_values(s, r).head);
-                }
-            ));
+    static constexpr auto value_types = when_all_values(
+        sender_types,
+        receiver_types);
 
-        static constexpr auto error_types = meta::zip_transform_unique(
-            sender_types, receiver_types, traits::sender_errors);
+    static constexpr auto error_types = meta::zip_transform_unique(
+        sender_types, receiver_types, traits::sender_errors);
 
-        using errors_t = decltype(error_types);
-        using values_t = decltype(value_types);
-    };
+    using errors_t = decltype(error_types);
+    using values_t = decltype(value_types);
 };
 
 }   // namespace when_all_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts>
-struct sender_traits<when_all_impl::sender<Ts...>>
-    : when_all_impl::sender_traits<Ts...>
+template <typename R, typename ... Ts>
+struct sender_traits<when_all_impl::sender<Ts...>, R>
+    : when_all_impl::sender_traits<R, Ts...>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////

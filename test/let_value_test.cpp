@@ -1,7 +1,8 @@
-#include "test_receiver.hpp"
+#include <execution/let_value.hpp>
 
 #include <execution/just.hpp>
-#include <execution/let_value.hpp>
+#include <execution/null_receiver.hpp>
+#include <execution/sync_wait.hpp>
 
 #include <gtest/gtest.h>
 
@@ -13,37 +14,49 @@ TEST(let_value, traits)
 {
     struct foo { int x; };
 
-    auto s0 = just(1, 2, 3)
+    constexpr auto receiver_type = meta::atom<null_receiver>{};
+
+    auto s0 = just() | let_value([] {
+        return just();
+    });
+
+    auto s1 = just(1, 2, 3)
         | let_value([] (int x, int y, int z) {
             return just(x + y + z);
         });
 
-    auto s1 = just(1, 2, 3)
+    auto s2 = just(1, 2, 3)
         | let_value([] (int x, int y, int z) {
             return just(x + y + z);
         })
         | let_value([] (int x) {
             return just(x, foo{x})
                 | let_value([] (int x, foo y) {
-                    return just(x + y.x);
+                    return just(x, y.x);
                 });
         });
 
     constexpr auto s0_type = meta::atom<decltype(s0)>{};
     constexpr auto s1_type = meta::atom<decltype(s1)>{};
-    constexpr auto receiver_type = meta::atom<test_receiver<>>{};
-
-    static_assert(traits::sender_errors(s0_type, receiver_type)
-        == meta::list<std::exception_ptr>{});
-
-    static_assert(traits::sender_errors(s1_type, receiver_type)
-        == meta::list<std::exception_ptr>{});
+    constexpr auto s2_type = meta::atom<decltype(s2)>{};
 
     static_assert(traits::sender_values(s0_type, receiver_type)
-        == meta::list<signature<int>>{});
+        == meta::list<signature<>>{});
 
     static_assert(traits::sender_values(s1_type, receiver_type)
         == meta::list<signature<int>>{});
+
+    static_assert(traits::sender_values(s2_type, receiver_type)
+        == meta::list<signature<int, int>>{});
+
+    static_assert(traits::sender_errors(s0_type, receiver_type)
+         == meta::list<std::exception_ptr>{});
+
+    static_assert(traits::sender_errors(s1_type, receiver_type)
+         == meta::list<std::exception_ptr>{});
+
+    static_assert(traits::sender_errors(s2_type, receiver_type)
+         == meta::list<std::exception_ptr>{});
 }
 
 TEST(let_value, simple)
@@ -55,14 +68,8 @@ TEST(let_value, simple)
 
     int value = 0;
 
-    auto op = connect(std::move(s), test_receiver{}
-        .on_value([&] (int x) {
-            value = x;
-        }));
-
-    op.start();
-
-    EXPECT_EQ(6, value);
+    auto [r] = *this_thread::sync_wait(std::move(s));
+    EXPECT_EQ(6, r);
 }
 
 TEST(let_value, complex)
@@ -78,14 +85,6 @@ TEST(let_value, complex)
                 });
         });
 
-    int value = 0;
-
-    auto op = connect(std::move(s), test_receiver{}
-        .on_value([&] (int x) {
-            value = x;
-        }));
-
-    op.start();
-
-    EXPECT_EQ(12, value);
+    auto [r] = *this_thread::sync_wait(std::move(s));
+    EXPECT_EQ(12, r);
 }

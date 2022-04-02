@@ -1,7 +1,8 @@
-#include "test_receiver.hpp"
+#include <execution/then.hpp>
 
 #include <execution/just.hpp>
-#include <execution/then.hpp>
+#include <execution/null_receiver.hpp>
+#include <execution/sync_wait.hpp>
 
 #include <gtest/gtest.h>
 
@@ -15,17 +16,20 @@ TEST(then, traits)
 {
     struct foo { int x; };
 
-    auto s0 = just(1) | then([] (auto x) {
+    auto s0 = just() | then([] {});
+
+    auto s1 = just(1) | then([] (auto x) {
         return std::to_string(x);
     });
 
-    auto s1 = just(1) | then([] (auto x) noexcept {
+    auto s2 = just(1) | then([] (auto x) noexcept {
         return foo{x};
     });
 
     constexpr auto s0_type = meta::atom<decltype(s0)>{};
     constexpr auto s1_type = meta::atom<decltype(s1)>{};
-    constexpr auto receiver_type = meta::atom<test_receiver<>>{};
+    constexpr auto s2_type = meta::atom<decltype(s2)>{};
+    constexpr auto receiver_type = meta::atom<null_receiver>{};
 
     static_assert(traits::sender_errors(s0_type, receiver_type)
         == meta::list<std::exception_ptr>{});
@@ -35,16 +39,21 @@ TEST(then, traits)
         // == meta::list<>{});
         == meta::list<std::exception_ptr>{});
 
+    static_assert(traits::sender_errors(s2_type, receiver_type)
+        == meta::list<std::exception_ptr>{});
+
     static_assert(traits::sender_values(s0_type, receiver_type)
-        == meta::list<signature<std::string>>{});
+        == meta::list<signature<>>{});
 
     static_assert(traits::sender_values(s1_type, receiver_type)
+        == meta::list<signature<std::string>>{});
+
+    static_assert(traits::sender_values(s2_type, receiver_type)
         == meta::list<signature<foo>>{});
 }
 
 TEST(then, test)
 {
-    int value = -1;
     auto s = just()
         | then([]{
             return 1;
@@ -56,12 +65,7 @@ TEST(then, test)
             return x + 1;
         });
 
-    auto op = connect(std::move(s), test_receiver{}
-        .on_value([&] (int x) {
-            value = x;
-        }));
+    auto [r] = *this_thread::sync_wait(std::move(s));
 
-    op.start();
-
-    EXPECT_EQ(3, value);
+    EXPECT_EQ(3, r);
 }

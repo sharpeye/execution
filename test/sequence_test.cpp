@@ -1,8 +1,9 @@
-#include "test_receiver.hpp"
+#include <execution/sequence.hpp>
 
 #include <execution/just.hpp>
 #include <execution/let_value.hpp>
-#include <execution/sequence.hpp>
+#include <execution/null_receiver.hpp>
+#include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
 
 #include <gtest/gtest.h>
@@ -31,7 +32,7 @@ TEST(sequence, traits)
 
     constexpr auto s0_type = meta::atom<decltype(s0)>{};
     constexpr auto s1_type = meta::atom<decltype(s1)>{};
-    constexpr auto receiver_type = meta::atom<test_receiver<>>{};
+    constexpr auto receiver_type = meta::atom<null_receiver>{};
 
     static_assert(traits::sender_errors(s0_type, receiver_type)
         == meta::list<std::exception_ptr>{});
@@ -58,15 +59,8 @@ TEST(sequence, simple)
         just(4)
     );
 
-    int value = -1;
-    auto op = connect(std::move(s), test_receiver{}
-        .on_value([&] (int x) {
-            value = x;
-        }));
-
-    op.start();
-
-    EXPECT_EQ(4, value);
+    auto [r] = *this_thread::sync_wait(std::move(s));
+    EXPECT_EQ(4, r);
 }
 
 TEST(sequence, complex)
@@ -95,14 +89,7 @@ TEST(sequence, complex)
             );
         }));
 
-    float value = -1;
-
-    auto op = connect(std::move(s), test_receiver{}
-        .on_value([&] (int x) {
-            value = x;
-        }));
-
-    op.start();
+    auto [value] = *this_thread::sync_wait(std::move(s));
 
     EXPECT_EQ(6, r0);
     EXPECT_EQ(7, r1);

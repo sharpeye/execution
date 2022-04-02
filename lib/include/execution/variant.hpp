@@ -17,7 +17,10 @@ struct variant<meta::list<Ts...>>
     using type = std::variant<Ts...>;
 };
 
-template <auto list>
-using variant_t = typename variant<std::decay_t<decltype(list)>>::type;
+template <typename L>
+using variant_t = typename variant<std::decay_t<L>>::type;
+
+template <auto& ls>
+using variant_v = variant_t<decltype(ls)>;
 
 }   // namespace execution

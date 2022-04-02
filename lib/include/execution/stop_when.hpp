@@ -154,26 +154,34 @@ class operation
     struct values_tag {};
     struct error_tag {};
 
+    static constexpr auto source_value_types = traits::sender_values(
+        source_type,
+        source_receiver_type);
+
+    static constexpr auto source_error_types = traits::sender_errors(
+        source_type,
+        source_receiver_type);
+
     static constexpr auto value_types = meta::transform(
-        traits::sender_values(source_type, source_receiver_type),
+        source_value_types,
         []<typename ... Ts>(meta::atom<signature<Ts...>>) {
             return meta::atom<decayed_tuple_t<values_tag, Ts...>>{};
         }
     );
 
     static constexpr auto error_types = meta::transform(
-        traits::sender_errors(source_type, source_receiver_type),
+        source_error_types,
         []<typename E>(meta::atom<E>) {
             return meta::atom<std::tuple<error_tag, E>>{};
         }
     );
 
-    using storage_t = variant_t<
+    using storage_t = variant_t<decltype(
           meta::atom<std::tuple<init_tag, S, T>>{}
         | meta::atom<std::tuple<stopped_tag>>{}
         | value_types
         | error_types
-    >;
+    )>;
 
 private:
     R _receiver;
@@ -369,38 +377,33 @@ struct stop_when
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename U>
+template <typename T, typename U, typename R>
 struct sender_traits
 {
     static constexpr auto source_type = meta::atom<T>{};
     static constexpr auto trigger_type = meta::atom<U>{};
+    static constexpr auto receiver_type = meta::atom<R>{};
 
-    template <typename R>
-    struct with
-    {
-        static constexpr auto receiver_type = meta::atom<R>{};
+    static constexpr auto value_types = traits::sender_values(
+        source_type, receiver_type);
 
-        static constexpr auto value_types = traits::sender_values(
-            source_type, receiver_type);
+    static constexpr auto error_types = meta::concat_unique(
+        traits::sender_errors(source_type, receiver_type),
+        meta::list<std::exception_ptr>{}
+    );
 
-        static constexpr auto error_types = meta::concat_unique(
-            traits::sender_errors(source_type, receiver_type),
-            meta::list<std::exception_ptr>{}
-        );
-
-        using operation_t = operation<T, U, R>;
-        using errors_t = decltype(error_types);
-        using values_t = decltype(value_types);
-    };
+    using operation_t = operation<T, U, R>;
+    using errors_t = decltype(error_types);
+    using values_t = decltype(value_types);
 };
 
 }   // namespace stop_when_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename U>
-struct sender_traits<stop_when_impl::sender<T, U>>
-    : stop_when_impl::sender_traits<T, U>
+template <typename T, typename U, typename R>
+struct sender_traits<stop_when_impl::sender<T, U>, R>
+    : stop_when_impl::sender_traits<T, U, R>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////

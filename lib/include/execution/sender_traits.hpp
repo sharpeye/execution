@@ -10,43 +10,12 @@ namespace execution {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename S>
+template <typename S, typename R>
 struct sender_traits;
 
 template <typename ... Ts>
 struct signature
 {};
-
-template <typename L>
-struct signature_from_list;
-
-template <typename ... Ts>
-struct signature_from_list<meta::list<Ts...>>
-{
-    using type = signature<Ts...>;
-};
-
-template <typename ... Ts>
-consteval auto to_signature(meta::atom<Ts>...)
-{
-    return meta::atom<typename signature_from_list<
-        decltype(meta::remove(meta::list<Ts...>{}, meta::none))
-    >::type>{};
-}
-
-template <typename ... Ts>
-consteval auto to_signature(meta::list<Ts...> ls)
-{
-    return meta::atom<typename signature_from_list<
-        decltype(meta::remove(ls, meta::none))
-    >::type>{};
-}
-
-template <typename ... Ts>
-consteval auto to_list(meta::atom<signature<Ts...>>)
-{
-    return meta::list<Ts...>{};
-}
 
 namespace traits {
 
@@ -54,29 +23,29 @@ namespace traits {
 
 constexpr auto sender_operation = [] <typename S, typename R> (
     meta::atom<S>,
-    meta::atom<R>) consteval
+    meta::atom<R>)
 {
-    return meta::atom<typename sender_traits<S>::template with<R>::operation_t>{};
+    return meta::atom<typename sender_traits<S, R>::operation_t>{};
 };
 
 constexpr auto sender_errors = [] <typename S, typename R> (
     meta::atom<S>,
-    meta::atom<R>) consteval
+    meta::atom<R>)
 {
-    return typename sender_traits<S>::template with<R>::errors_t {};
+    return typename sender_traits<S, R>::errors_t {};
 };
 
 constexpr auto sender_values = [] <typename S, typename R> (
     meta::atom<S>,
-    meta::atom<R>) consteval
+    meta::atom<R>)
 {
-    return typename sender_traits<S>::template with<R>::values_t {};
+    return typename sender_traits<S, R>::values_t {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename ... Ts>
-consteval auto invoke_result(meta::atom<F>, meta::atom<signature<Ts...>>)
+constexpr auto invoke_result(meta::atom<F>, meta::atom<signature<Ts...>>)
 {
     return meta::atom<std::invoke_result_t<F, Ts...>>{};
 }
@@ -84,7 +53,7 @@ consteval auto invoke_result(meta::atom<F>, meta::atom<signature<Ts...>>)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename ... Ts>
-consteval bool is_nothrow_invocable(meta::atom<F>, meta::atom<signature<Ts...>>)
+constexpr bool is_nothrow_invocable(meta::atom<F>, meta::atom<signature<Ts...>>)
 {
     return std::is_nothrow_invocable_v<F, Ts...>;
 }

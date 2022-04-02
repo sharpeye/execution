@@ -1,8 +1,7 @@
-#include "test_receiver.hpp"
-
 #include <execution/just.hpp>
+
+#include <execution/null_receiver.hpp>
 #include <execution/sync_wait.hpp>
-#include <execution/then.hpp>
 
 #include <gtest/gtest.h>
 
@@ -24,7 +23,7 @@ TEST(just, traits)
     constexpr auto s0_type = meta::atom<decltype(s0)>{};
     constexpr auto s1_type = meta::atom<decltype(s1)>{};
     constexpr auto s2_type = meta::atom<decltype(s2)>{};
-    constexpr auto receiver_type = meta::atom<test_receiver<>>{};
+    constexpr auto receiver_type = meta::atom<null_receiver>{};
 
     static_assert(traits::sender_errors(s0_type, receiver_type)
         == meta::list<std::exception_ptr>{});
@@ -46,83 +45,34 @@ TEST(just, traits)
 TEST(just, test)
 {
     {
-        bool value = false;
-        auto op = connect(just(), test_receiver{}
-            .on_value([&] {
-                value = true;
-            }));
-
-        op.start();
-
-        EXPECT_EQ(true, value);
+        auto r = this_thread::sync_wait(just());
+        EXPECT_TRUE(r.has_value());
     }
 
     {
-        int value = 0;
-        auto op = connect(just(42), test_receiver{}
-            .on_value([&] (int x) {
-                value = x;
-            }));
-
-        op.start();
-
-        EXPECT_EQ(42, value);
+        auto [r] = *this_thread::sync_wait(just(42));
+        EXPECT_EQ(42, r);
     }
 
     {
-        std::pair<int, int> value {};
-
-        auto op = connect(just(1, 2), test_receiver{}
-            .on_value([&] (int x, int y) {
-                value = {x, y};
-            }));
-
-        op.start();
-
-        EXPECT_EQ(1, std::get<0>(value));
-        EXPECT_EQ(2, std::get<1>(value));
+        auto [r0, r1] = *this_thread::sync_wait(just(1, 2));
+        EXPECT_EQ(1, r0);
+        EXPECT_EQ(2, r1);
     }
 
     {
-        auto s0 = just(std::vector<int>{ 1, 2, 3 });
+        std::vector const v0 {1, 2, 3};
+        auto s = just(v0);
 
-        auto s1 = then(s0, [] (auto&& v) {
-            for (auto& x: v) {
-                x *= 2;
-            }
-            return std::move(v);
-        });
+        // copy
+        auto [v1] = *this_thread::sync_wait(s);
+        EXPECT_EQ(v0, v1);
 
-        {
-            // copy s0
-            auto [r] = *this_thread::sync_wait(then(s0, [] (auto&& v) {
-                for (auto& x: v) {
-                    x *= 2;
-                }
-                return std::move(v);
-            }));
+        // move
+        auto [v2] = *this_thread::sync_wait(std::move(s));
+        EXPECT_EQ(v0, v2);
 
-            EXPECT_EQ(3, r.size());
-            EXPECT_EQ((std::vector { 2, 4, 6 }), r);
-        }
-
-        {
-            // move
-            auto [r] = *this_thread::sync_wait(then(std::move(s0), [] (auto&& v) {
-                for (auto& x: v) {
-                    x *= 2;
-                }
-                return std::move(v);
-            }));
-
-            EXPECT_EQ(3, r.size());
-            EXPECT_EQ((std::vector { 2, 4, 6 }), r);
-        }
-
-        {
-            auto [r] = *this_thread::sync_wait(s0);
-
-            EXPECT_EQ(0, r.size());
-        }
+        auto [v3] = *this_thread::sync_wait(s);
+        EXPECT_TRUE(v3.empty());
     }
 }

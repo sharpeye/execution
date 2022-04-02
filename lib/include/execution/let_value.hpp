@@ -75,18 +75,21 @@ struct operation
             return traits::invoke_result(factory_type, sig);
         });
 
-    using state_t = variant_t<
+    static constexpr auto successor_operation_types =
+        meta::transform(successor_types, [] (auto s) {
+            return traits::sender_operation(s, receiver_type);
+        });
+
+    using state_t = variant_t<decltype(
           predecessor_type
         | predecessor_operation_type
-        | meta::transform(successor_types, [] (auto s) {
-            return traits::sender_operation(s, receiver_type);
-        })
-    >;
+        | successor_operation_types
+    )>;
 
-    using values_t = variant_t<
+    using values_t = variant_t<decltype(
           meta::atom<std::monostate>{}
         | meta::transform(predecessor_value_types, meta::convert_to<decayed_tuple_t>)
-    >;
+    )>;
 
     F _factory;
     R _receiver;
@@ -208,68 +211,70 @@ struct let_value
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename P, typename F>
+template <typename P, typename F, typename R>
 struct sender_traits
 {
     static constexpr auto predecessor_type = meta::atom<P>{};
     static constexpr auto factory_type = meta::atom<F>{};
 
-    template <typename R>
-    struct with
-    {
-        static constexpr auto receiver_type = meta::atom<R>{};
+    static constexpr auto receiver_type = meta::atom<R>{};
 
-        static constexpr auto predecessor_receiver_type = meta::atom<
-            forward_receiver<P, F, R>>{};
+    static constexpr auto predecessor_receiver_type = meta::atom<
+        forward_receiver<P, F, R>>{};
 
-        static constexpr auto successor_types = meta::transform_unique(
-            traits::sender_values(predecessor_type, receiver_type),
-            [] (auto sig) {
-                return traits::invoke_result(factory_type, sig);
+    static constexpr auto get_invoke_result =
+        [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
+            return meta::atom<std::invoke_result_t<F, Ts...>>{};
+        };
+
+    static constexpr auto successor_types = meta::transform_unique(
+        traits::sender_values(predecessor_type, receiver_type),
+        get_invoke_result
+    );
+
+    static constexpr auto successors_value_types = meta::transform(
+        successor_types, [] (auto s) {
+            return traits::sender_values(s, receiver_type);
+        });
+
+    static constexpr auto successors_error_types = meta::transform(
+        successor_types, [] (auto s) {
+            return traits::sender_errors(s, receiver_type);
+        });
+
+    static constexpr auto value_types = meta::chain_unique(
+        successors_value_types
+    );
+
+    static constexpr bool is_nothrow = meta::is_all(
+        traits::sender_values(predecessor_type, receiver_type),
+        [] (auto values) {
+            return traits::is_nothrow_invocable(factory_type, values);
+        });
+
+    static constexpr auto error_types = meta::concat_unique(
+        traits::sender_errors(predecessor_type, predecessor_receiver_type),
+        successors_error_types,
+        [] {
+            if constexpr (is_nothrow) {
+                return meta::list<>{};
+            } else {
+                return meta::list<std::exception_ptr>{};
             }
-        );
+        } ());
 
-        static constexpr auto value_types = meta::chain_unique(
-            meta::transform(
-                successor_types,
-                [] (auto s) {
-                    return traits::sender_values(s, receiver_type);
-                }
-            ));
-
-        static constexpr auto error_types = meta::concat_unique(
-            traits::sender_errors(predecessor_type, predecessor_receiver_type),
-            meta::transform(successor_types, [] (auto s) {
-                return traits::sender_errors(s, receiver_type);
-            }),
-            [] {
-                constexpr bool nothrow = meta::is_all(
-                    traits::sender_values(predecessor_type, receiver_type),
-                    [] (auto sig) {
-                        return traits::is_nothrow_invocable(factory_type, sig);
-                    }
-                );
-
-                if constexpr (nothrow) {
-                    return meta::list<>{};
-                } else {
-                    return meta::list<std::exception_ptr>{};
-                }
-            } ());
-
-        using operation_t = operation<P, F, R>;
-        using errors_t = decltype(error_types);
-        using values_t = decltype(value_types);
-    };
+    using operation_t = operation<P, F, R>;
+    using errors_t = decltype(error_types);
+    using values_t = decltype(value_types);
 };
 
 }   // namespace let_value_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename P, typename F>
-struct sender_traits<let_value_impl::sender<P, F>>
-    : let_value_impl::sender_traits<P, F>
+template <typename P, typename F, typename R>
+struct sender_traits<let_value_impl::sender<P, F>, R>
+    : let_value_impl::sender_traits<P, F, R>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////

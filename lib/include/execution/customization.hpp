@@ -39,14 +39,14 @@ inline constexpr tag_invoke_fn_ns::tag_invoke_fn tag_invoke{};
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename T, typename ... Ts>
-consteval bool is_tag_invocable()
+constexpr bool is_tag_invocable()
 {
     return false;
 }
 
 template<typename T, typename ... Ts>
     requires requires (T tag, Ts&& ... args) { tag_invoke(tag, std::forward<Ts>(args)...); }
-consteval bool is_tag_invocable()
+constexpr bool is_tag_invocable()
 {
     return true;
 }
@@ -62,7 +62,7 @@ inline constexpr bool is_nothrow_tag_invocable_v = noexcept(
 
 using tag_invoke_fn_ns::tag_invoke_result_t;
 
-template <auto Tag>
+template <auto& Tag>
 using tag_t = std::remove_cvref_t<decltype(Tag)>;
 
 }   // namespace execution

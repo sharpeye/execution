@@ -7,6 +7,11 @@ namespace execution::meta {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <auto const& v>
+using type_t = typename std::decay_t<decltype(v)>::type;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 struct atom
 {
@@ -46,7 +51,7 @@ struct list<H, Ts...>
     static constexpr auto tail = list<Ts...>{};
 
     template <int index>
-    consteval auto operator [] (index_t<index>) const
+    constexpr auto operator [] (index_t<index>) const
     {
         static_assert(
             (0 <= index && index < list::length) ||
@@ -70,7 +75,7 @@ struct list<H, Ts...>
 
 template <template <typename...> typename F>
 constexpr auto convert_to = [] <template <typename...> typename U, typename ... Ts>
-        (meta::atom<U<Ts...>>) consteval
+        (meta::atom<U<Ts...>>) constexpr
     {
         return meta::atom<F<Ts...>>{};
     };
@@ -78,13 +83,13 @@ constexpr auto convert_to = [] <template <typename...> typename U, typename ... 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename H>
-consteval bool operator == (atom<T>, atom<H>)
+constexpr bool operator == (atom<T>, atom<H>)
 {
     return std::is_same_v<T, H>;
 }
 
 template <typename ... Ts, typename ... Hs>
-consteval bool operator == (list<Ts...>, list<Hs...>)
+constexpr bool operator == (list<Ts...>, list<Hs...>)
 {
     return std::is_same_v<list<Ts...>, list<Hs...>>;
 }
@@ -92,27 +97,27 @@ consteval bool operator == (list<Ts...>, list<Hs...>)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts, typename ... Hs>
-consteval auto operator | (list<Ts...>, list<Hs...>)
+constexpr auto operator | (list<Ts...>, list<Hs...>)
     -> list<Ts..., Hs...>
 {
     return {};
 }
 
 template <typename T, typename ... Ts>
-consteval auto operator | (atom<T>, list<Ts...>)
+constexpr auto operator | (atom<T>, list<Ts...>)
     -> list<T, Ts...>
 {
     return {};
 }
 
 template <typename T, typename H>
-consteval auto operator | (atom<T>, atom<H>) -> list<T, H>
+constexpr auto operator | (atom<T>, atom<H>) -> list<T, H>
 {
     return {};
 }
 
 template <typename ... Ts, typename T>
-consteval auto operator | (list<Ts...>, atom<T>)
+constexpr auto operator | (list<Ts...>, atom<T>)
     -> list<Ts..., T>
 {
     return {};
@@ -121,7 +126,7 @@ consteval auto operator | (list<Ts...>, atom<T>)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts, typename T>
-consteval auto find(list<Ts...> ls, T value)
+constexpr auto find(list<Ts...> ls, T value)
 {
     if constexpr (ls.is_empty) {
         return -1;
@@ -139,7 +144,7 @@ consteval auto find(list<Ts...> ls, T value)
 }
 
 template <typename ... Ts, typename T>
-consteval auto contains(list<Ts...> ls, T item)
+constexpr auto contains(list<Ts...> ls, T item)
 {
     return find(ls, item) != -1;
 }
@@ -147,7 +152,7 @@ consteval auto contains(list<Ts...> ls, T item)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts>
-consteval auto unique(list<Ts...> ls)
+constexpr auto unique(list<Ts...> ls)
 {
     if constexpr (ls.is_empty) {
         return ls;
@@ -165,7 +170,7 @@ consteval auto unique(list<Ts...> ls)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts, typename F>
-consteval auto transform(list<Ts...> ls, F func)
+constexpr auto transform(list<Ts...> ls, F func)
 {
     if constexpr (ls.is_empty) {
         return ls;
@@ -175,7 +180,7 @@ consteval auto transform(list<Ts...> ls, F func)
 }
 
 template <typename ... Ts, typename F>
-consteval auto transform_unique(list<Ts...> ls, F func)
+constexpr auto transform_unique(list<Ts...> ls, F func)
 {
     return unique(transform(ls, func));
 }
@@ -183,7 +188,7 @@ consteval auto transform_unique(list<Ts...> ls, F func)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts, typename I, typename F>
-consteval auto fold(list<Ts...> ls, I init, F func)
+constexpr auto fold(list<Ts...> ls, I init, F func)
 {
     if constexpr (ls.is_empty) {
         return init;
@@ -193,7 +198,7 @@ consteval auto fold(list<Ts...> ls, I init, F func)
 }
 
 template <typename ... Ts, typename I, typename F>
-consteval auto fold_unique(list<Ts...> ls, I init, F func)
+constexpr auto fold_unique(list<Ts...> ls, I init, F func)
 {
     return unique(fold(ls, init, func));
 }
@@ -201,7 +206,7 @@ consteval auto fold_unique(list<Ts...> ls, I init, F func)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts, typename T, typename U>
-consteval auto replace(list<Ts...> ls, T old_value, U new_value)
+constexpr auto replace(list<Ts...> ls, T old_value, U new_value)
 {
     if constexpr (ls.is_empty) {
         return ls;
@@ -219,7 +224,7 @@ consteval auto replace(list<Ts...> ls, T old_value, U new_value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts, typename T>
-consteval auto remove(list<Ts...> ls, T value)
+constexpr auto remove(list<Ts...> ls, T value)
 {
     if constexpr (ls.is_empty) {
         return ls;
@@ -237,7 +242,7 @@ consteval auto remove(list<Ts...> ls, T value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <int ... Is>
-consteval auto iota_impl(std::integer_sequence<int, Is...>)
+constexpr auto iota_impl(std::integer_sequence<int, Is...>)
 {
     return list<int_constant_t<Is>...>{};
 }
@@ -248,7 +253,7 @@ static constexpr auto iota = iota_impl(std::make_integer_sequence<int, N>{});
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ts>
-consteval auto last(list<Ts...> ls)
+constexpr auto last(list<Ts...> ls)
 {
     return ls[index_t<-1>{}];
 }
@@ -256,13 +261,13 @@ consteval auto last(list<Ts...> ls)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename ... Ls>
-consteval auto concat(Ls ... ls)
+constexpr auto concat(Ls ... ls)
 {
     return (ls | ...);
 }
 
 template <typename ... Ls>
-consteval auto concat_unique(Ls ... ls)
+constexpr auto concat_unique(Ls ... ls)
 {
     return unique(concat(ls...));
 }
@@ -271,41 +276,37 @@ consteval auto concat_unique(Ls ... ls)
 // [[a], [b, c], [d]] -> [a, b, c, d]
 
 template <typename ... Ts>
-consteval auto chain(list<Ts...> ls)
+constexpr auto chain(list<Ts...> ls)
 {
     return ls;
 }
 
 template <typename ... Ls>
-consteval auto chain(list<list<Ls>...>)
+constexpr auto chain(list<list<Ls>...>)
 {
     return (list<Ls>{} | ...);
 }
 
 template <typename ... Ts>
-consteval auto chain_unique(list<Ts...> ls)
+constexpr auto chain_unique(list<Ts...> ls)
 {
     return unique(chain(ls));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename ... Ts, typename F>
-consteval bool is_any(list<Ts...> ls, F func)
-{
+constexpr auto is_any = [] <typename ... Ts>  (list<Ts...>, auto func) constexpr {
     return (func(atom<Ts>{}) || ...);
-}
+};
 
-template <typename ... Ts, typename F>
-consteval bool is_all(list<Ts...> ls, F func)
-{
+constexpr auto is_all = [] <typename ... Ts>  (list<Ts...>, auto func) constexpr {
     return (func(atom<Ts>{}) && ...);
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename L1, typename L2, typename F>
-consteval auto zip_transform(L1 l1, L2 l2, F fn)
+constexpr auto zip_transform(L1 l1, L2 l2, F fn)
 {
     static_assert(l1.length == l2.length);
 
@@ -317,7 +318,7 @@ consteval auto zip_transform(L1 l1, L2 l2, F fn)
 }
 
 template <typename L1, typename L2, typename F>
-consteval auto zip_transform_unique(L1 l1, L2 l2, F fn)
+constexpr auto zip_transform_unique(L1 l1, L2 l2, F fn)
 {
     return unique(zip_transform(l1, l2, fn));
 }

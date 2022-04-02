@@ -108,61 +108,64 @@ struct then
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename P, typename F>
+template <typename P, typename F, typename R>
 struct sender_traits
 {
     static constexpr auto predecessor_type = meta::atom<P>{};
     static constexpr auto func_type = meta::atom<F>{};
 
-    template <typename R>
-    struct with
-    {
-        static constexpr auto receiver_type = meta::atom<then_receiver<F, R>>{};
+    static constexpr auto receiver_type = meta::atom<then_receiver<F, R>>{};
 
-        static constexpr auto operation_type = traits::sender_operation(
-            predecessor_type,
-            receiver_type);
+    static constexpr auto operation_type = traits::sender_operation(
+        predecessor_type,
+        receiver_type);
 
-        static constexpr auto value_types = meta::remove(
+    static constexpr auto predecessor_value_types = traits::sender_values(
+        predecessor_type,
+        receiver_type);
+
+    static constexpr auto get_invoke_result =
+        [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
+            return meta::atom<signature<std::invoke_result_t<F, Ts...>>>{};
+        };
+
+    static constexpr auto value_types = 
+        meta::replace(
             meta::transform_unique(
                 traits::sender_values(predecessor_type, receiver_type),
-                [] (auto sig) {
-                    return to_signature(traits::invoke_result(func_type, sig));
-                }
+                get_invoke_result
             ),
-            meta::none
-        );
+            meta::atom<signature<void>>{},
+            meta::atom<signature<>>{});
 
-        static constexpr auto error_types = meta::concat_unique(
-            traits::sender_errors(predecessor_type, receiver_type),
-            [] {
-                constexpr bool nothrow = meta::is_all(
-                    traits::sender_values(predecessor_type, receiver_type),
-                    [] (auto sig) {
-                        return traits::is_nothrow_invocable(func_type, sig);
-                    }
-                );
+    static constexpr bool is_nothrow = meta::is_all(
+        traits::sender_values(predecessor_type, receiver_type),
+        [] (auto values) {
+            return traits::is_nothrow_invocable(func_type, values);
+        });
 
-                if constexpr (nothrow) {
-                    return meta::list<>{};
-                } else {
-                    return meta::list<std::exception_ptr>{};
-                }
-            } ());
+    static constexpr auto error_types = meta::concat_unique(
+        traits::sender_errors(predecessor_type, receiver_type),
+        [] {
+            if constexpr (is_nothrow) {
+                return meta::list<>{};
+            } else {
+                return meta::list<std::exception_ptr>{};
+            }
+        } ());
 
-        using operation_t = typename decltype(operation_type)::type;
-        using errors_t = decltype(error_types);
-        using values_t = decltype(value_types);
-    };
+    using operation_t = meta::type_t<operation_type>;
+    using errors_t = decltype(error_types);
+    using values_t = decltype(value_types);
 };
 
 }   // namespace then_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename P, typename F>
-struct sender_traits<then_impl::sender<P, F>>
-    : then_impl::sender_traits<P, F>
+template <typename P, typename F, typename R>
+struct sender_traits<then_impl::sender<P, F>, R>
+    : then_impl::sender_traits<P, F, R>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////

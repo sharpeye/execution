@@ -276,39 +276,40 @@ struct scheduler
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <typename> typename T>
+template <typename T>
 struct sender_traits_base
 {
-    template <typename R>
-    struct with
-    {
-        using operation_t = T<R>;
-        using values_t = meta::list<signature<>>;
-        using errors_t = meta::list<std::exception_ptr>;
-    };
+    using operation_t = T;
+    using values_t = meta::list<signature<>>;
+    using errors_t = meta::list<std::exception_ptr>;
 };
 
-using sender_traits = sender_traits_base<operation>;
-using sender_after_traits = sender_traits_base<operation_after>;
-using sender_at_traits = sender_traits_base<operation_at>;
+template <typename R>
+using sender_traits = sender_traits_base<operation<R>>;
+
+template <typename R>
+using sender_after_traits = sender_traits_base<operation_after<R>>;
+
+template <typename R>
+using sender_at_traits = sender_traits_base<operation_at<R>>;
 
 }   // namespace simple_thread_pool_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <>
-struct sender_traits<simple_thread_pool_impl::sender>
-    : simple_thread_pool_impl::sender_traits
+template <typename R>
+struct sender_traits<simple_thread_pool_impl::sender, R>
+    : simple_thread_pool_impl::sender_traits<R>
 {};
 
-template <>
-struct sender_traits<simple_thread_pool_impl::sender_after>
-    : simple_thread_pool_impl::sender_after_traits
+template <typename R>
+struct sender_traits<simple_thread_pool_impl::sender_after, R>
+    : simple_thread_pool_impl::sender_after_traits<R>
 {};
 
-template <>
-struct sender_traits<simple_thread_pool_impl::sender_at>
-    : simple_thread_pool_impl::sender_at_traits
+template <typename R>
+struct sender_traits<simple_thread_pool_impl::sender_at, R>
+    : simple_thread_pool_impl::sender_at_traits<R>
 {};
 
 using simple_thread_pool = simple_thread_pool_impl::thread_pool;

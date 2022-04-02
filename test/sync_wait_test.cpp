@@ -1,5 +1,3 @@
-#include "test_receiver.hpp"
-
 #include <execution/just.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
