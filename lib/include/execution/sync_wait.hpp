@@ -108,7 +108,7 @@ struct sync_wait
             sender_type,
             receiver_type);
 
-        static_assert(value_types.length == 1);
+        static_assert(value_types.size == 1);
 
         return do_sync_wait(std::forward<T>(sender), value_types.head);
     }

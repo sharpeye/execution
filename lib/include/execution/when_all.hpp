@@ -25,7 +25,7 @@ constexpr auto when_all_values(auto sender_types, auto receiver_types)
             return traits::sender_values(s, r).head;
         });
 
-    static_assert(values.length == sender_types.length);
+    static_assert(values.size == sender_types.size);
 
     constexpr auto to_signature = [] <typename ... Ts> (meta::list<Ts...>) {
         return meta::list<signature<Ts...>>{};
@@ -104,7 +104,7 @@ struct operation
         return traits::sender_values(
             sender_types[index],
             receiver_types[index]
-        ).length <= 1;
+        ).size <= 1;
     }));
 
     static constexpr auto operation_types = meta::zip_transform(
@@ -144,7 +144,7 @@ struct operation
     struct operations
     {
         tuple_v<operation_types> _operations;
-        std::atomic<int> _active_ops = operation_types.length;
+        std::atomic<int> _active_ops = operation_types.size;
 
         std::stop_source _stop_source;
         std::stop_callback<cancel_callback> _stop_callback;
@@ -173,7 +173,7 @@ struct operation
 
     void start() &
     {
-        start_impl(std::make_index_sequence<sender_types.length>{});
+        start_impl(std::make_index_sequence<sender_types.size>{});
     }
 
     template <std::size_t ... Is>

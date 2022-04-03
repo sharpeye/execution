@@ -13,8 +13,8 @@ TEST(meta, list)
 {
     constexpr auto nothing = list<>{};
 
-    static_assert(nothing.length == 0);
-    static_assert(list<int>{}.length == 1);
+    static_assert(nothing.size == 0);
+    static_assert(list<int>{}.size == 1);
     static_assert(list<int>{}.head == atom<int>{});
     static_assert(list<int>{}.tail == nothing);
 
@@ -25,7 +25,7 @@ TEST(meta, list)
 
     auto ls = list<int, char, double>{};
 
-    static_assert(ls.length == 3);
+    static_assert(ls.size == 3);
 
     static_assert(ls[index_t<0>{}] == atom<int>{});
     static_assert(ls[index_t<1>{}] == atom<char>{});

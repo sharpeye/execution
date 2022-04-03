@@ -37,15 +37,13 @@ struct list;
 template <>
 struct list<>
 {
-    static constexpr std::size_t length = 0;
-    static constexpr bool is_empty = true;
+    static constexpr int size = 0;
 };
 
 template <typename H, typename ... Ts>
 struct list<H, Ts...>
 {
-    static constexpr int length = 1 + sizeof ... (Ts);
-    static constexpr bool is_empty = false;
+    static constexpr int size = 1 + sizeof ... (Ts);
 
     static constexpr auto head = atom<H>{};
     static constexpr auto tail = list<Ts...>{};
@@ -54,16 +52,16 @@ struct list<H, Ts...>
     constexpr auto operator [] (index_t<index>) const
     {
         static_assert(
-            (0 <= index && index < list::length) ||
-            (0 < -index && -index <= list::length),
+            (0 <= index && index < list::size) ||
+            (0 < -index && -index <= list::size),
             "index overflow"
         );
 
-        if constexpr (index == 0 || -index == list::length) {
+        if constexpr (index == 0 || -index == list::size) {
             return list::head;
         } else {
             if constexpr (index < 0) {
-                return list::tail[index_t<list::length + index - 1>{}];
+                return list::tail[index_t<list::size + index - 1>{}];
             } else {
                 return list::tail[index_t<index - 1>{}];
             }
@@ -128,7 +126,7 @@ constexpr auto operator | (list<Ts...>, atom<T>)
 template <typename ... Ts, typename T>
 constexpr auto find(list<Ts...> ls, T value)
 {
-    if constexpr (ls.is_empty) {
+    if constexpr (ls.size == 0) {
         return -1;
     } else {
         if constexpr (ls.head == value) {
@@ -154,7 +152,7 @@ constexpr auto contains(list<Ts...> ls, T item)
 template <typename ... Ts>
 constexpr auto unique(list<Ts...> ls)
 {
-    if constexpr (ls.is_empty) {
+    if constexpr (ls.size == 0) {
         return ls;
     } else {
         auto tail = unique(ls.tail);
@@ -172,7 +170,7 @@ constexpr auto unique(list<Ts...> ls)
 template <typename ... Ts, typename F>
 constexpr auto transform(list<Ts...> ls, F func)
 {
-    if constexpr (ls.is_empty) {
+    if constexpr (ls.size == 0) {
         return ls;
     } else {
         return func(ls.head) | transform(ls.tail, func);
@@ -190,7 +188,7 @@ constexpr auto transform_unique(list<Ts...> ls, F func)
 template <typename ... Ts, typename I, typename F>
 constexpr auto fold(list<Ts...> ls, I init, F func)
 {
-    if constexpr (ls.is_empty) {
+    if constexpr (ls.size == 0) {
         return init;
     } else {
         return fold(ls.tail, func(init, ls.head), func);
@@ -208,7 +206,7 @@ constexpr auto fold_unique(list<Ts...> ls, I init, F func)
 template <typename ... Ts, typename T, typename U>
 constexpr auto replace(list<Ts...> ls, T old_value, U new_value)
 {
-    if constexpr (ls.is_empty) {
+    if constexpr (ls.size == 0) {
         return ls;
     } else {
         auto tail = replace(ls.tail, old_value, new_value);
@@ -226,7 +224,7 @@ constexpr auto replace(list<Ts...> ls, T old_value, U new_value)
 template <typename ... Ts, typename T>
 constexpr auto remove(list<Ts...> ls, T value)
 {
-    if constexpr (ls.is_empty) {
+    if constexpr (ls.size == 0) {
         return ls;
     } else {
         auto tail = remove(ls.tail, value);
@@ -308,9 +306,9 @@ constexpr auto is_all = [] <typename ... Ts>  (list<Ts...>, auto func) constexpr
 template <typename L1, typename L2, typename F>
 constexpr auto zip_transform(L1 l1, L2 l2, F fn)
 {
-    static_assert(l1.length == l2.length);
+    static_assert(l1.size == l2.size);
 
-    if constexpr (l1.is_empty) {
+    if constexpr (l1.size == 0) {
         return l1;
     } else {
         return fn(l1.head, l2.head) | zip_transform(l1.tail, l2.tail, fn);
