@@ -7,10 +7,6 @@
 #include "variant.hpp"
 
 #include <atomic>
-#include <optional>
-#include <stop_token>
-#include <tuple>
-#include <utility>
 
 namespace execution {
 namespace stop_when_impl {
@@ -290,7 +286,7 @@ public:
         std::terminate();
     }
 
-    void finish()
+    void finish() noexcept
     {
         // reset callback
         _state = std::monostate{};
