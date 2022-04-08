@@ -2,6 +2,8 @@
 
 #include "context.hpp"
 
+#include <execution/stop_token.hpp>
+
 #include <cassert>
 #include <span>
 
@@ -45,8 +47,8 @@ struct operation
             return;
         }
 
-        if (cqe->res < 0) {
-            set_error(std::move(_receiver), make_error_code(-cqe->res));
+        if (auto ec = make_error_code(cqe->res)) {
+            set_error(std::move(_receiver), ec);
             return;
         }
 
@@ -57,7 +59,7 @@ struct operation
             return;
         }
 
-        _iov.iov_base += cqe->res;
+        _iov.iov_base = static_cast<char*>(_iov.iov_base) + cqe->res;
 
         submit();
     }
@@ -109,11 +111,9 @@ struct sender
 
 struct write
 {
-    sender operator () (context& ctx, int fd, std::string_view s) const
+    sender operator () (context& ctx, int fd, std::span<std::byte const> buf) const
     {
-        return {&ctx, fd, {
-            reinterpret_cast<std::byte const*>(s.data()), s.size()
-        }};
+        return {&ctx, fd, buf};
     }
 };
 

@@ -71,8 +71,14 @@ struct operation
 
     static constexpr auto successor_types = meta::transform(
         predecessor_value_types,
-        [] (auto sig) {
-            return traits::invoke_result(factory_type, sig);
+        // TODO: simplify
+        [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
+            return meta::atom<std::decay_t<decltype(
+                std::apply(
+                    std::declval<F>(),
+                    std::declval<decayed_tuple_t<Ts...>&>()
+                )
+            )>>{};
         });
 
     static constexpr auto successor_operation_types =
@@ -120,14 +126,20 @@ struct operation
     void set_value(Ts&& ... values)
     {
         using tuple_t = decayed_tuple_t<Ts...>;
-        using operation_t = typename decltype(
-            traits::sender_operation(
-                traits::invoke_result(factory_type, meta::atom<signature<Ts...>>{}),
-                receiver_type
-            ))::type;
-
         auto& tuple = _values.template emplace<tuple_t>(
             std::forward<Ts>(values)...);
+
+        // using operation_t = typename decltype(
+        //     traits::sender_operation(
+        //         traits::invoke_result(factory_type, meta::atom<signature<Ts...>>{}),
+        //         receiver_type
+        //     ))::type;
+
+        using successor_t = std::decay_t<decltype(std::apply(std::move(_factory), tuple))>;
+
+        using operation_t = typename decltype(
+            traits::sender_operation(meta::atom<successor_t>{}, receiver_type)
+        )::type;
 
         auto& op = _state.template emplace<operation_t>(execution::connect(
             std::apply(std::move(_factory), tuple),
@@ -224,7 +236,12 @@ struct sender_traits
 
     static constexpr auto get_invoke_result =
         [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
-            return meta::atom<std::invoke_result_t<F, Ts...>>{};
+            return meta::atom<std::decay_t<decltype(
+                std::apply(
+                    std::declval<F>(),
+                    std::declval<decayed_tuple_t<Ts...>&>()
+                )
+            )>>{};
         };
 
     static constexpr auto successor_types = meta::transform_unique(

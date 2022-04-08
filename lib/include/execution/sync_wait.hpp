@@ -9,6 +9,7 @@
 #include <exception>
 #include <future>
 #include <optional>
+#include <system_error>
 
 namespace this_thread {
 namespace sync_wait_impl {
@@ -31,6 +32,12 @@ struct receiver
     void set_error(std::exception_ptr ex)
     {
         promise.set_exception(std::move(ex));
+    }
+
+    void set_error(std::error_code ec)
+    {
+        promise.set_exception(std::make_exception_ptr(
+            std::system_error{ec}));
     }
 
     template <typename E>
@@ -66,7 +73,6 @@ auto do_sync_wait(T&& sender, meta::atom<signature<Ts...>> expected_result_type)
     auto op = connect(std::forward<T>(sender), receiver<result_t>{promise});
     start(op);
 
-    future.wait();
     return future.get();
 }
 

@@ -2,6 +2,8 @@
 
 #include "context.hpp"
 
+#include <netinet/ip.h>
+
 #include <cassert>
 
 namespace uring::accept_impl {
@@ -16,6 +18,7 @@ struct operation
     context* _ctx;
     int _fd;
     sockaddr_in _peer;
+    socklen_t _peer_len;
     // io_uring_sqe* _sqe; // for cancellation
 
     template <typename U>
@@ -27,6 +30,7 @@ struct operation
         , _ctx{ctx}
         , _fd{fd}
         , _peer{}
+        , _peer_len{}
     {}
 
     void start() & noexcept
@@ -34,7 +38,9 @@ struct operation
         auto* sqe = _ctx->get_sqe();
         assert(sqe);
 
-        io_uring_prep_accept(sqe, _fd, &_peer, sizeof(_peer), 0);
+        auto addr = reinterpret_cast<sockaddr*>(&_peer);
+
+        io_uring_prep_accept(sqe, _fd, addr, &_peer_len, 0);
         io_uring_sqe_set_data(sqe, this);
 
         _ctx->submit();
@@ -42,8 +48,8 @@ struct operation
 
     void completion(io_uring_cqe* cqe) noexcept override
     {
-        if (cqe->res < 0) {
-            execution::set_error(std::move(_receiver), make_error_code(-cqe->res));
+        if (auto ec = make_error_code(cqe->res)) {
+            execution::set_error(std::move(_receiver), ec);
         } else {
             execution::set_value(std::move(_receiver), cqe->res, _peer);
         }

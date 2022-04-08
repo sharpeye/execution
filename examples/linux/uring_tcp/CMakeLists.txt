@@ -23,7 +23,7 @@ ExternalProject_Get_Property(liburing SOURCE_DIR)
 
 add_executable(uring_tcp
     main.cpp 
-    context.cpp
+    # context.cpp
 )
 
 set_target_properties(uring_tcp PROPERTIES

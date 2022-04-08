@@ -1,6 +1,7 @@
 #include <execution/submit.hpp>
 
 #include <execution/just.hpp>
+#include <execution/let_value.hpp>
 #include <execution/schedule.hpp>
 #include <execution/simple_thread_pool.hpp>
 #include <execution/then.hpp>
@@ -27,11 +28,13 @@ TEST(submit, test)
 
     submit(
         schedule(sched)
-            | then([&] {
-                s.wait();
-                value.set_value(42);
+            | let_value([&] {
+                return just() | then([&] {
+                    s.wait();
+                    value.set_value(42);
+                });
             })
-    );
+        );
 
     EXPECT_EQ(std::future_status::timeout, v.wait_for(10ms));
     signal.set_value();

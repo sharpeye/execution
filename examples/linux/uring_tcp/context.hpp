@@ -26,7 +26,7 @@ inline std::error_code make_error_code(int ec) noexcept
 {
     return ec < 0
         ? std::error_code{-ec, std::system_category()}
-        : {};
+        : std::error_code{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
