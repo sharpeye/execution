@@ -64,7 +64,7 @@ int main()
         ctx.stop();
     }
     catch (std::exception const& ex) {
-        std::cerr << "[ERROR] << " << ex.what() << std::endl;
+        std::cerr << "[ERROR] " << ex.what() << std::endl;
         return 1;
     }
 
