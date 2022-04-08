@@ -80,7 +80,7 @@ struct just
     template <typename ... Ts>
     constexpr auto operator () (Ts&& ... values) const
     {
-        return just_impl::sender<std::decay_t<Ts>...>(
+        return sender<std::decay_t<Ts>...>(
             std::in_place,
             std::forward<Ts>(values)...
         );
