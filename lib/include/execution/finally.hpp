@@ -120,7 +120,11 @@ struct operation
     );
 
     static constexpr auto error_types = meta::transform(
-        traits::sender_errors(source_type, source_receiver_type),
+        meta::concat_unique(
+            meta::list<std::exception_ptr>{},
+            traits::sender_errors(source_type, source_receiver_type),
+            traits::sender_errors(completion_type, completion_receiver_type)
+        ),
         []<typename E>(meta::atom<E>) {
             return meta::atom<std::tuple<error_tag, E>>{};
         }
