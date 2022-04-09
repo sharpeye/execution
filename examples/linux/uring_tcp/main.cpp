@@ -8,6 +8,7 @@
 #include <execution/just.hpp>
 #include <execution/let_value.hpp>
 #include <execution/repeat_effect_until.hpp>
+#include <execution/sequence.hpp>
 #include <execution/submit.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
@@ -21,7 +22,7 @@
 #include <string>
 #include <system_error>
 
-namespace ex = execution;
+using namespace execution;
 
 namespace {
 
@@ -42,19 +43,21 @@ struct connection
 
 auto process_connection(uring::context& ctx, int s)
 {
-    return ex::just(connection{s})
-        | ex::let_value([&] (connection& conn) {
-            return ex::repeat_effect_until(
-                uring::read_some(ctx, conn._fd, conn._buffer)
-                    | ex::let_value([&] (std::span<std::byte> buf) {
-                        conn._done = buf.empty();
-                        return uring::write(ctx, conn._fd, buf);
-                    }),
-                [&] {
-                    return conn._done;
+    return just(connection{s})
+        | let_value([&] (connection& conn) {
+            return uring::read_some(ctx, conn._fd, conn._buffer)
+                | let_value([&] (std::span<std::byte> buf) {
+                    conn._done = buf.empty();
+                    return sequence(
+                        uring::write(ctx, conn._fd, as_bytes(std::span{">> "})),
+                        uring::write(ctx, conn._fd, buf)
+                    );
                 })
-            | ex::finally(uring::close(ctx, conn._fd));
-          });
+                | repeat_effect_until([&] {
+                    return conn._done;
+                });
+          })
+        | finally(uring::close(ctx, s));
 }
 
 }   // namespace
@@ -68,7 +71,6 @@ int main(int argc, char** argv)
             ? std::stoi(argv[1])
             : 9788;
 
-        // int s = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
         int s = socket(AF_INET, SOCK_STREAM, 0);
         const int val = 1;
         setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
@@ -88,22 +90,19 @@ int main(int argc, char** argv)
             fatal("listen");
         }
 
-        std::clog << "listening on port :" << port << " ..." << std::endl;
+        std::clog << "listening on port " << port << " ..." << std::endl;
 
         uring::context ctx;
         ctx.start(1024);
 
-        // TODO: stop_source + SIGINT|SIGTERM
-
-        uring::accept(ctx, s) | ex::then([&] (int s, sockaddr_in peer) {
+        uring::accept(ctx, s) | then([&] (int s, sockaddr_in peer) {
             char addr[ INET_ADDRSTRLEN ] {};
             inet_ntop(AF_INET, &peer, addr, sizeof(addr));
             std::cout << "new connection: " << addr << std::endl;
 
-            ex::submit(process_connection(ctx, s));
-            // ex::submit(ex::just());
+            submit(process_connection(ctx, s));
         })
-        | ex::repeat_effect()
+        | repeat_effect()
         | this_thread::sync_wait();
 
         ctx.stop();
