@@ -204,7 +204,10 @@ struct sender_traits
 {
     using operation_t = operation<R, S, F>;
     using values_t = meta::list<signature<>>;
-    using errors_t = meta::list<std::exception_ptr>;
+    using errors_t = decltype(meta::concat_unique(
+        meta::list<std::exception_ptr>{},
+        traits::sender_errors(meta::atom<S>{}, meta::atom<R>{})
+    ));
 };
 
 }   // namespace repeat_effect_until_impl
