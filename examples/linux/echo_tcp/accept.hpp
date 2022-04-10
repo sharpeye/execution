@@ -19,7 +19,6 @@ struct operation
     int _fd;
     sockaddr_in _peer;
     socklen_t _peer_len;
-    // io_uring_sqe* _sqe; // for cancellation
 
     template <typename U>
     operation(

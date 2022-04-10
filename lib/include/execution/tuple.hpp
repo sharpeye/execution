@@ -24,7 +24,4 @@ struct tuple<meta::list<Ts...>>
 template <typename L>
 using tuple_t = typename tuple<std::decay_t<L>>::type;
 
-template <auto& l>
-using tuple_v = tuple_t<decltype(l)>;
-
 }   // namespace execution

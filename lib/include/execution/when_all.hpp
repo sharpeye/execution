@@ -129,7 +129,7 @@ struct operation
             return meta::atom<variant_t<decltype(ls)>>{};
         });
 
-    using storage_t = tuple_v<senders_storage_types>;
+    using storage_t = tuple_t<decltype(senders_storage_types)>;
 
     struct cancel_callback
     {
@@ -143,7 +143,7 @@ struct operation
 
     struct operations
     {
-        tuple_v<operation_types> _operations;
+        tuple_t<decltype(operation_types)> _operations;
         std::atomic<int> _active_ops = operation_types.size;
 
         std::stop_source _stop_source;

@@ -19,7 +19,6 @@ struct operation
     context* _ctx;
     int _fd;
     iovec _iov;
-    // io_uring_sqe* _sqe; // for cancellation
 
     template <typename U>
     operation(

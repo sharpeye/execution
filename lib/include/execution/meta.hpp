@@ -13,9 +13,6 @@ struct atom
     using type = T;
 };
 
-using none_t = atom<void>;
-static constexpr auto none = none_t{};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <int value>

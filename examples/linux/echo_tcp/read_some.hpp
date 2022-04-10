@@ -19,7 +19,6 @@ struct operation
     context* _ctx;
     int _fd;
     iovec _iov;
-    // io_uring_sqe* _sqe; // for cancellation
 
     template <typename U>
     operation(
@@ -30,7 +29,7 @@ struct operation
         : _receiver{std::forward<U>(receiver)}
         , _ctx{ctx}
         , _fd{fd}
-        , _iov{const_cast<std::byte*>(buffer.data()), buffer.size()}
+        , _iov{buffer.data(), buffer.size()}
     {}
 
     void start() & noexcept
@@ -60,7 +59,7 @@ struct operation
 
         execution::set_value(
             std::move(_receiver),
-            std::span<std::byte>{
+            std::span {
                 reinterpret_cast<std::byte*>(_iov.iov_base),
                 static_cast<std::size_t>(cqe->res)
             }
@@ -103,9 +102,9 @@ struct sender
 
 struct read_some
 {
-    sender operator () (context& ctx, int fd, std::span<std::byte> s) const
+    sender operator () (context& ctx, int fd, std::span<std::byte> buf) const
     {
-        return {&ctx, fd, s};
+        return {&ctx, fd, buf};
     }
 };
 

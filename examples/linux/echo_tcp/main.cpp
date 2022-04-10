@@ -38,11 +38,10 @@ void fatal(char const* msg, int ec = errno)
 
 std::string to_string(sockaddr_in const& peer)
 {
-    auto& ipv4 = reinterpret_cast<sockaddr_in const&>(peer);
-    char addr[ INET_ADDRSTRLEN ] {};
-    inet_ntop(AF_INET, &ipv4, addr, sizeof(addr));
+    char addr[INET_ADDRSTRLEN] {};
+    inet_ntop(AF_INET, &peer, addr, sizeof(addr));
 
-    return std::string{addr} + ":" + std::to_string(ipv4.sin_port);
+    return std::string{addr} + ":" + std::to_string(peer.sin_port);
 }
 
 void print_error(std::exception_ptr ep)
@@ -70,11 +69,13 @@ struct connection
 
     auto process(uring::context& ctx)
     {
+        static constexpr auto prefix = std::span{ ">> ", 3 };
+
         return uring::read_some(ctx, _fd, _buffer)
             | let_value([&ctx, this] (std::span<std::byte> buf) {
                 _done = buf.empty();
                 return sequence(
-                    uring::write(ctx, _fd, as_bytes(std::span{">> "})),
+                    uring::write(ctx, _fd, as_bytes(prefix)),
                     uring::write(ctx, _fd, buf)
                 );
             })

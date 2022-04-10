@@ -69,9 +69,7 @@ struct operation
         predecessor_type,
         predecessor_receiver_type);
 
-    static constexpr auto successor_types = meta::transform(
-        predecessor_value_types,
-        // TODO: simplify
+    static constexpr auto get_invoke_result =
         [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
             return meta::atom<std::decay_t<decltype(
                 std::apply(
@@ -79,7 +77,12 @@ struct operation
                     std::declval<decayed_tuple_t<Ts...>&>()
                 )
             )>>{};
-        });
+        };
+
+    static constexpr auto successor_types = meta::transform_unique(
+        traits::sender_values(predecessor_type, receiver_type),
+        get_invoke_result
+    );
 
     static constexpr auto successor_operation_types =
         meta::transform(successor_types, [] (auto s) {
@@ -129,17 +132,8 @@ struct operation
         auto& tuple = _values.template emplace<tuple_t>(
             std::forward<Ts>(values)...);
 
-        // using operation_t = typename decltype(
-        //     traits::sender_operation(
-        //         traits::invoke_result(factory_type, meta::atom<signature<Ts...>>{}),
-        //         receiver_type
-        //     ))::type;
-
         using successor_t = std::decay_t<decltype(std::apply(std::move(_factory), tuple))>;
-
-        using operation_t = typename decltype(
-            traits::sender_operation(meta::atom<successor_t>{}, receiver_type)
-        )::type;
+        using operation_t = typename execution::sender_traits<successor_t, R>::operation_t;
 
         auto& op = _state.template emplace<operation_t>(execution::connect(
             std::apply(std::move(_factory), tuple),
@@ -226,36 +220,20 @@ struct let_value
 template <typename P, typename F, typename R>
 struct sender_traits
 {
+    using operation_t = operation<P, F, R>;
+
     static constexpr auto predecessor_type = meta::atom<P>{};
     static constexpr auto factory_type = meta::atom<F>{};
 
     static constexpr auto receiver_type = meta::atom<R>{};
 
-    static constexpr auto predecessor_receiver_type = meta::atom<
-        forward_receiver<P, F, R>>{};
-
-    static constexpr auto get_invoke_result =
-        [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
-            return meta::atom<std::decay_t<decltype(
-                std::apply(
-                    std::declval<F>(),
-                    std::declval<decayed_tuple_t<Ts...>&>()
-                )
-            )>>{};
-        };
-
-    static constexpr auto successor_types = meta::transform_unique(
-        traits::sender_values(predecessor_type, receiver_type),
-        get_invoke_result
-    );
-
     static constexpr auto successors_value_types = meta::transform(
-        successor_types, [] (auto s) {
+        operation_t::successor_types, [] (auto s) {
             return traits::sender_values(s, receiver_type);
         });
 
     static constexpr auto successors_error_types = meta::transform(
-        successor_types, [] (auto s) {
+        operation_t::successor_types, [] (auto s) {
             return traits::sender_errors(s, receiver_type);
         });
 
@@ -269,6 +247,9 @@ struct sender_traits
             return traits::is_nothrow_invocable(factory_type, values);
         });
 
+    static constexpr auto predecessor_receiver_type = meta::atom<
+        forward_receiver<P, F, R>>{};
+
     static constexpr auto error_types = meta::concat_unique(
         traits::sender_errors(predecessor_type, predecessor_receiver_type),
         successors_error_types,
@@ -280,7 +261,6 @@ struct sender_traits
             }
         } ());
 
-    using operation_t = operation<P, F, R>;
     using errors_t = decltype(error_types);
     using values_t = decltype(value_types);
 };
