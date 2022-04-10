@@ -21,19 +21,19 @@ ExternalProject_Add(
 
 ExternalProject_Get_Property(liburing SOURCE_DIR)
 
-add_executable(uring_tcp main.cpp)
+add_executable(echo_tcp main.cpp)
 
-set_target_properties(uring_tcp PROPERTIES
+set_target_properties(echo_tcp PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED YES
     CXX_EXTENSIONS NO
 )
 
-target_include_directories(uring_tcp PRIVATE
+target_include_directories(echo_tcp PRIVATE
     ${SOURCE_DIR}/src/include
 )
 
-target_link_libraries(uring_tcp PRIVATE
+target_link_libraries(echo_tcp PRIVATE
     execution
     pthread
     "${SOURCE_DIR}/src/liburing.a"

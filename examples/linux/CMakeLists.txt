@@ -1,3 +1,3 @@
 cmake_minimum_required(VERSION 3.20)
 
-add_subdirectory(uring_tcp)
+add_subdirectory(echo_tcp)
