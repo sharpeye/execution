@@ -12,8 +12,10 @@
 #include <execution/submit.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
+#include <execution/upon_error.hpp>
 
 #include <arpa/inet.h>
+#include <signal.h>
 #include <sys/socket.h>
 
 #include <array>
@@ -32,6 +34,22 @@ void fatal(char const* msg, int ec = errno)
 {
     throw std::system_error{ec, std::system_category(), msg};
 }
+
+void print_error(std::exception_ptr ep)
+{
+    try {
+        std::rethrow_exception(ep);
+    } catch (std::exception const& ex) {
+        std::cerr << "[ERROR] " << ex.what() << '\n';
+    }
+}
+
+void print_error(std::error_code ec)
+{
+    std::cerr << "[ERROR] " << ec << '\n';
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct connection
 {
@@ -52,10 +70,13 @@ auto process_connection(uring::context& ctx, int s)
                         uring::write(ctx, conn._fd, as_bytes(std::span{">> "})),
                         uring::write(ctx, conn._fd, buf)
                     );
-                })
+                  })
                 | repeat_effect_until([&] {
                     return conn._done;
-                });
+                  });
+          })
+        | upon_error([] (auto error) {
+            print_error(error);
           })
         | finally(uring::close(ctx, s));
 }
@@ -66,6 +87,8 @@ auto process_connection(uring::context& ctx, int s)
 
 int main(int argc, char** argv)
 {
+    signal(SIGPIPE, SIG_IGN);
+
     try {
         int const port = argc > 1
             ? std::stoi(argv[1])
@@ -107,8 +130,8 @@ int main(int argc, char** argv)
 
         ctx.stop();
     }
-    catch (std::exception const& ex) {
-        std::cerr << "[ERROR] " << ex.what() << std::endl;
+    catch (...) {
+        print_error(std::current_exception());
         return 1;
     }
 
