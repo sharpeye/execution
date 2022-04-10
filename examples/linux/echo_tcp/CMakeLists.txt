@@ -11,5 +11,5 @@ set_target_properties(echo_tcp PROPERTIES
 target_link_libraries(echo_tcp PRIVATE
     execution
     pthread
-    liburing
+    uring
 )

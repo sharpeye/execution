@@ -11,3 +11,4 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(liburing_cmake)
 
 add_subdirectory(echo_tcp)
+add_subdirectory(uring)
