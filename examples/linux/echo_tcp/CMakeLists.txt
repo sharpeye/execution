@@ -1,26 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-include(ExternalProject)
-
-ExternalProject_Add(
-    liburing
-    GIT_REPOSITORY https://github.com/axboe/liburing.git
-    GIT_TAG liburing-2.1
-    GIT_PROGRESS 1
-    CONFIGURE_COMMAND ./configure
-    BUILD_COMMAND make
-    BUILD_IN_SOURCE 1
-    BUILD_BYPRODUCTS "<SOURCE_DIR>/src/liburing.a"
-    INSTALL_COMMAND ""
-    TEST_COMMAND ""
-    LOG_CONFIGURE ON
-    LOG_BUILD ON
-    LOG_MERGED_STDOUTERR ON
-    LOG_OUTPUT_ON_FAILURE ON
-)
-
-ExternalProject_Get_Property(liburing SOURCE_DIR)
-
 add_executable(echo_tcp main.cpp)
 
 set_target_properties(echo_tcp PROPERTIES
@@ -29,12 +8,8 @@ set_target_properties(echo_tcp PROPERTIES
     CXX_EXTENSIONS NO
 )
 
-target_include_directories(echo_tcp PRIVATE
-    ${SOURCE_DIR}/src/include
-)
-
 target_link_libraries(echo_tcp PRIVATE
     execution
     pthread
-    "${SOURCE_DIR}/src/liburing.a"
+    liburing
 )
