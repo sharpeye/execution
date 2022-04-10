@@ -30,7 +30,7 @@ struct operation
         , _ctx{ctx}
         , _fd{fd}
         , _peer{}
-        , _peer_len{}
+        , _peer_len{sizeof(_peer)}
     {}
 
     void start() & noexcept

@@ -15,6 +15,7 @@
 #include <execution/upon_error.hpp>
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <signal.h>
 #include <sys/socket.h>
 
@@ -35,6 +36,15 @@ void fatal(char const* msg, int ec = errno)
     throw std::system_error{ec, std::system_category(), msg};
 }
 
+std::string to_string(sockaddr_in const& peer)
+{
+    auto& ipv4 = reinterpret_cast<sockaddr_in const&>(peer);
+    char addr[ INET_ADDRSTRLEN ] {};
+    inet_ntop(AF_INET, &ipv4, addr, sizeof(addr));
+
+    return std::string{addr} + ":" + std::to_string(ipv4.sin_port);
+}
+
 void print_error(std::exception_ptr ep)
 {
     try {
@@ -53,33 +63,26 @@ void print_error(std::error_code ec)
 
 struct connection
 {
-    int _fd;
+    int _fd = -1;
 
-    std::array<std::byte, 64*1024> _buffer;
+    std::array<std::byte, 64 * 1024> _buffer;
     bool _done = false;
-};
 
-auto process_connection(uring::context& ctx, int s)
-{
-    return just(connection{s})
-        | let_value([&] (connection& conn) {
-            return uring::read_some(ctx, conn._fd, conn._buffer)
-                | let_value([&] (std::span<std::byte> buf) {
-                    conn._done = buf.empty();
-                    return sequence(
-                        uring::write(ctx, conn._fd, as_bytes(std::span{">> "})),
-                        uring::write(ctx, conn._fd, buf)
-                    );
-                  })
-                | repeat_effect_until([&] {
-                    return conn._done;
-                  });
-          })
-        | upon_error([] (auto error) {
-            print_error(error);
-          })
-        | finally(uring::close(ctx, s));
-}
+    auto process(uring::context& ctx)
+    {
+        return uring::read_some(ctx, _fd, _buffer)
+            | let_value([&ctx, this] (std::span<std::byte> buf) {
+                _done = buf.empty();
+                return sequence(
+                    uring::write(ctx, _fd, as_bytes(std::span{">> "})),
+                    uring::write(ctx, _fd, buf)
+                );
+            })
+            | repeat_effect_until([this] { return _done; })
+            | upon_error([] (auto error) { print_error(error); })
+            | finally(uring::close(ctx, _fd));
+    }
+};
 
 }   // namespace
 
@@ -118,12 +121,14 @@ int main(int argc, char** argv)
         uring::context ctx;
         ctx.start(1024);
 
-        uring::accept(ctx, s) | then([&] (int s, sockaddr_in peer) {
-            char addr[ INET_ADDRSTRLEN ] {};
-            inet_ntop(AF_INET, &peer, addr, sizeof(addr));
-            std::cout << "new connection: " << addr << std::endl;
+        uring::accept(ctx, s) | then([&] (int s, sockaddr_in const& peer) {
+            std::clog << "new connection: " << to_string(peer) << '\n';
 
-            submit(process_connection(ctx, s));
+            submit(just(connection{s})
+                | let_value([&] (connection& conn) {
+                    return conn.process(ctx);
+                })
+            );
         })
         | repeat_effect()
         | this_thread::sync_wait();
