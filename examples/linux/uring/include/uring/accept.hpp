@@ -17,7 +17,13 @@ struct operation
     R _receiver;
     context* _ctx;
     int _fd;
-    sockaddr_in _peer;
+
+    union {
+        sockaddr addr;
+        sockaddr_in addr4;
+        sockaddr_in6 addr6;
+    } _peer;
+
     socklen_t _peer_len;
 
     template <typename U>
@@ -37,9 +43,7 @@ struct operation
         auto* sqe = _ctx->get_sqe();
         assert(sqe);
 
-        auto addr = reinterpret_cast<sockaddr*>(&_peer);
-
-        io_uring_prep_accept(sqe, _fd, addr, &_peer_len, 0);
+        io_uring_prep_accept(sqe, _fd, &_peer.addr, &_peer_len, 0);
         io_uring_sqe_set_data(sqe, this);
 
         _ctx->submit();
@@ -50,7 +54,19 @@ struct operation
         if (auto ec = make_error_code(cqe->res)) {
             execution::set_error(std::move(_receiver), ec);
         } else {
-            execution::set_value(std::move(_receiver), cqe->res, _peer);
+            switch (_peer.addr.sa_family) {
+                case AF_INET:
+                    execution::set_value(std::move(_receiver), cqe->res, _peer.addr4);
+                    break;
+                case AF_INET6:
+                    execution::set_value(std::move(_receiver), cqe->res, _peer.addr6);
+                    break;
+                default:
+                    execution::set_error(
+                        std::move(_receiver),
+                        std::make_error_code(std::errc::address_family_not_supported)
+                    );
+            }
         }
     }
 };
@@ -105,7 +121,10 @@ template <typename R>
 struct sender_traits<uring::accept_impl::sender, R>
 {
     using operation_t = uring::accept_impl::operation<R>;
-    using values_t = meta::list<signature<int, sockaddr_in>>;
+    using values_t = meta::list<
+        signature<int, sockaddr_in>,
+        signature<int, sockaddr_in6>
+    >;
     using errors_t = meta::list<std::error_code>;
 };
 

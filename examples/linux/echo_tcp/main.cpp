@@ -40,6 +40,14 @@ std::string to_string(sockaddr_in const& peer)
     return std::string{addr} + ":" + std::to_string(peer.sin_port);
 }
 
+std::string to_string(sockaddr_in6 const& peer)
+{
+    char addr[INET6_ADDRSTRLEN] {};
+    inet_ntop(AF_INET6, &peer, addr, sizeof(addr));
+
+    return std::string{addr} + ":" + std::to_string(peer.sin6_port);
+}
+
 void print_error(std::exception_ptr ep)
 {
     try {
@@ -52,6 +60,29 @@ void print_error(std::exception_ptr ep)
 void print_error(std::error_code ec)
 {
     std::cerr << "[ERROR] " << ec << '\n';
+}
+
+int bind_and_listen(int port)
+{
+    int const s = socket(AF_INET6, SOCK_STREAM, 0);
+    int const val = 1;
+    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
+
+    sockaddr_in6 addr {
+        .sin6_family = AF_INET6,
+        .sin6_port = htons(port),
+        .sin6_addr = in6addr_any
+    };
+
+    if (bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
+        fatal("bind");
+    }
+
+    if (listen(s, 5) < 0) {
+        fatal("listen");
+    }
+
+    return s;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,41 +125,25 @@ int main(int argc, char** argv)
             ? std::stoi(argv[1])
             : 9788;
 
-        int s = socket(AF_INET, SOCK_STREAM, 0);
-        const int val = 1;
-        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
-
-        sockaddr_in addr {
-            .sin_family = AF_INET,
-            .sin_port = htons(port),
-            .sin_addr = {
-                .s_addr = INADDR_ANY
-            }};
-
-        if (bind(s, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-            fatal("bind");
-        }
-
-        if (listen(s, 5) < 0) {
-            fatal("listen");
-        }
+        int const s = bind_and_listen(port);
 
         std::clog << "listening on port " << port << " ..." << std::endl;
 
         uring::context ctx;
         ctx.start(1024);
 
-        uring::accept(ctx, s) | then([&] (int s, sockaddr_in const& peer) {
-            std::clog << "new connection: " << to_string(peer) << '\n';
+        uring::accept(ctx, s)
+            | then([&] (int s, auto const& peer) {
+                std::clog << "new connection: " << to_string(peer) << '\n';
 
-            submit(just(connection{s})
-                | let_value([&] (connection& conn) {
-                    return conn.process(ctx);
-                })
-            );
-        })
-        | repeat_effect()
-        | this_thread::sync_wait();
+                submit(just(connection{s})
+                    | let_value([&] (connection& conn) {
+                        return conn.process(ctx);
+                    })
+                );
+              })
+            | repeat_effect()
+            | this_thread::sync_wait();
 
         ctx.stop();
     }
