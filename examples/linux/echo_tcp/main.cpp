@@ -1,3 +1,4 @@
+#include <execution/conditional.hpp>
 #include <execution/finally.hpp>
 #include <execution/just.hpp>
 #include <execution/let_value.hpp>
@@ -27,11 +28,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void fatal(char const* msg, int ec = errno)
-{
-    throw std::system_error{ec, std::system_category(), msg};
-}
-
 std::string to_string(sockaddr_in const& peer)
 {
     char addr[INET_ADDRSTRLEN] {};
@@ -60,6 +56,11 @@ void print_error(std::exception_ptr ep)
 void print_error(std::error_code ec)
 {
     std::cerr << "[ERROR] " << ec << '\n';
+}
+
+void fatal(char const* msg, int ec = errno)
+{
+    throw std::system_error{ec, std::system_category(), msg};
 }
 
 int bind_and_listen(int port)
@@ -97,14 +98,17 @@ struct connection
     auto process(uring::context& ctx)
     {
         static constexpr auto prefix = std::span{ ">> ", 3 };
+        static constexpr auto bye = std::span{ "bye", 3 };
 
         return uring::read_some(ctx, _fd, _buffer)
             | let_value([&ctx, this] (std::span<std::byte> buf) {
                 _done = buf.empty();
-                return sequence(
-                    uring::write(ctx, _fd, as_bytes(prefix)),
-                    uring::write(ctx, _fd, buf)
-                );
+                return conditional([this] { return _done; },
+                    uring::write(ctx, _fd, as_bytes(bye)),
+                    sequence(
+                        uring::write(ctx, _fd, as_bytes(prefix)),
+                        uring::write(ctx, _fd, buf)
+                    ));
             })
             | repeat_effect_until([this] { return _done; })
             | upon_error([] (auto error) { print_error(error); })
@@ -127,7 +131,7 @@ int main(int argc, char** argv)
 
         int const s = bind_and_listen(port);
 
-        std::clog << "listening on port " << port << " ..." << std::endl;
+        std::clog << "listening on port " << port << " ..." << '\n';
 
         uring::context ctx;
         ctx.start(1024);
@@ -139,6 +143,9 @@ int main(int argc, char** argv)
                 submit(just(connection{s})
                     | let_value([&] (connection& conn) {
                         return conn.process(ctx);
+                    })
+                    | then([=] {
+                        std::clog << "done with " << to_string(peer) << '\n';
                     })
                 );
               })
