@@ -72,6 +72,23 @@ TEST(when_all, simple)
     EXPECT_EQ(6.0, r5);
 }
 
+TEST(when_all, no_value)
+{
+    auto s = when_all(
+        just(),
+        just(),
+        just(),
+        just(),
+        just()
+    );
+
+    auto r = this_thread::sync_wait(std::move(s));
+
+    EXPECT_TRUE(r.has_value());
+
+    static_assert(std::is_same_v<std::tuple<>, std::decay_t<decltype(*r)>>);
+}
+
 TEST(when_all, thread_pool)
 {
     simple_thread_pool pool{3};

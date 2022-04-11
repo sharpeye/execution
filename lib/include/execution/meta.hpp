@@ -272,9 +272,13 @@ constexpr auto chain(list<Ts...> ls)
 }
 
 template <typename ... Ls>
-constexpr auto chain(list<list<Ls>...>)
+constexpr auto chain(list<list<Ls>...> ls)
 {
-    return (list<Ls>{} | ...);
+    if constexpr (ls.size == 0) {
+        return ls;
+    } else {
+        return (list<Ls>{} | ...);
+    }
 }
 
 template <typename ... Ts>
