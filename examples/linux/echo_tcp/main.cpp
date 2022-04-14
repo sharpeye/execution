@@ -31,7 +31,7 @@ namespace {
 std::string to_string(sockaddr_in const& peer)
 {
     char addr[INET_ADDRSTRLEN] {};
-    inet_ntop(AF_INET, &peer, addr, sizeof(addr));
+    inet_ntop(AF_INET, &peer.sin_addr, addr, sizeof(addr));
 
     return std::string{addr} + ":" + std::to_string(peer.sin_port);
 }
@@ -39,7 +39,7 @@ std::string to_string(sockaddr_in const& peer)
 std::string to_string(sockaddr_in6 const& peer)
 {
     char addr[INET6_ADDRSTRLEN] {};
-    inet_ntop(AF_INET6, &peer, addr, sizeof(addr));
+    inet_ntop(AF_INET6, &peer.sin6_addr, addr, sizeof(addr));
 
     return std::string{addr} + ":" + std::to_string(peer.sin6_port);
 }
