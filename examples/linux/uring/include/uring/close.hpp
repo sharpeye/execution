@@ -4,7 +4,8 @@
 
 #include <cassert>
 
-namespace uring::close_impl {
+namespace uring {
+namespace close_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,6 +48,11 @@ struct operation
 
 struct sender
 {
+    template <typename R>
+    using operation_t = operation<R>;
+    using values_t = execution::meta::list<execution::signature<>>;
+    using errors_t = execution::meta::list<>;
+
     context* _ctx;
     int _fd;
 
@@ -71,27 +77,7 @@ struct close
     }
 };
 
-}   // namespace uring::close_impl
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace execution {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename R>
-struct sender_traits<uring::close_impl::sender, R>
-{
-    using operation_t = uring::close_impl::operation<R>;
-    using values_t = meta::list<signature<>>;
-    using errors_t = meta::list<>;
-};
-
-}   // namespace execution
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace uring {
+}   // namespace close_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 

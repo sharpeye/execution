@@ -11,7 +11,12 @@ namespace execution {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename S, typename R>
-struct sender_traits;
+struct sender_traits
+{
+    using operation_t = typename S::template operation_t<R>;
+    using values_t = typename S::values_t;
+    using errors_t = typename S::errors_t;
+};
 
 template <typename ... Ts>
 struct signature

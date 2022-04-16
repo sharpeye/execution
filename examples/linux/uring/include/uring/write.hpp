@@ -7,7 +7,8 @@
 #include <cassert>
 #include <span>
 
-namespace uring::write_impl {
+namespace uring {
+namespace write_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +80,11 @@ struct operation
 
 struct sender
 {
+    template <typename R>
+    using operation_t = operation<R>;
+    using values_t = execution::meta::list<execution::signature<>>;
+    using errors_t = execution::meta::list<std::error_code>;
+
     context* _ctx;
     int _fd;
     std::span<std::byte const> _buffer;
@@ -116,27 +122,7 @@ struct write
     }
 };
 
-}   // namespace uring::write_impl
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace execution {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename R>
-struct sender_traits<uring::write_impl::sender, R>
-{
-    using operation_t = uring::write_impl::operation<R>;
-    using values_t = meta::list<signature<>>;
-    using errors_t = meta::list<std::error_code>;
-};
-
-}   // namespace execution
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace uring {
+}   // namespace write_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 

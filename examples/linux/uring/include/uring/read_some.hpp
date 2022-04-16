@@ -7,7 +7,8 @@
 #include <cassert>
 #include <span>
 
-namespace uring::read_some_impl {
+namespace uring {
+namespace read_some_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +72,13 @@ struct operation
 
 struct sender
 {
+    template <typename R>
+    using operation_t = operation<R>;
+    using values_t = execution::meta::list<
+        execution::signature<std::span<std::byte>>
+    >;
+    using errors_t = execution::meta::list<std::error_code>;
+
     context* _ctx;
     int _fd;
     std::span<std::byte> _buffer;
@@ -108,29 +116,7 @@ struct read_some
     }
 };
 
-}   // namespace uring::read_some_impl
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace execution {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename R>
-struct sender_traits<uring::read_some_impl::sender, R>
-{
-    using operation_t = uring::read_some_impl::operation<R>;
-    using values_t = meta::list<signature<std::span<std::byte>>>;
-    using errors_t = meta::list<std::error_code>;
-};
-
-}   // namespace execution
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace uring {
-
-////////////////////////////////////////////////////////////////////////////////
+}   // namespace read_some_impl
 
 constexpr auto read_some = read_some_impl::read_some{};
 

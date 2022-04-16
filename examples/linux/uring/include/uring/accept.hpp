@@ -6,7 +6,8 @@
 
 #include <cassert>
 
-namespace uring::accept_impl {
+namespace uring {
+namespace accept_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +76,14 @@ struct operation
 
 struct sender
 {
+    template <typename R>
+    using operation_t = operation<R>;
+    using values_t = execution::meta::list<
+        execution::signature<int, sockaddr_in>,
+        execution::signature<int, sockaddr_in6>
+    >;
+    using errors_t = execution::meta::list<std::error_code>;
+
     context* _ctx;
     int _fd;
 
@@ -109,30 +118,7 @@ struct accept
     }
 };
 
-}   // namespace uring::accept_impl
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace execution {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename R>
-struct sender_traits<uring::accept_impl::sender, R>
-{
-    using operation_t = uring::accept_impl::operation<R>;
-    using values_t = meta::list<
-        signature<int, sockaddr_in>,
-        signature<int, sockaddr_in6>
-    >;
-    using errors_t = meta::list<std::error_code>;
-};
-
-}   // namespace execution
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace uring {
+}   // namespace accept_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
