@@ -1,8 +1,13 @@
-#include <execution/just.hpp>
 #include <execution/sync_wait.hpp>
+
+#include <execution/just.hpp>
+#include <execution/schedule.hpp>
+#include <execution/simple_thread_pool.hpp>
 #include <execution/then.hpp>
 
 #include <gtest/gtest.h>
+
+using namespace std::chrono_literals;
 
 using namespace execution;
 
@@ -87,4 +92,20 @@ TEST(sync_wait, test)
         EXPECT_EQ((std::vector { 1, 2, 3 }), r);
         EXPECT_EQ(3, r.size());
     }
+}
+
+TEST(sync_wait, cancellation)
+{
+    simple_thread_pool pool{1};
+
+    auto sched = pool.get_scheduler();
+
+    std::stop_source ss;
+    ss.request_stop();
+
+    auto r = schedule_after(sched, 10ms)
+        | then([] { return 42; })
+        | this_thread::sync_wait(ss);
+
+    EXPECT_FALSE(r.has_value());
 }

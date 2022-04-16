@@ -5,6 +5,7 @@
 #include <netinet/ip.h>
 
 #include <cassert>
+#include <optional>
 
 namespace uring {
 namespace accept_impl {
@@ -12,9 +13,27 @@ namespace accept_impl {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename R>
+struct operation_descr
+{
+    R _receiver;
+    context* _ctx;
+    int _fd;
+};
+
+template <typename R>
 struct operation
     : operation_base
 {
+    struct cancel_callback
+    {
+        operation<R>* _this;
+
+        void operator () () noexcept
+        {
+            _this->cancel();
+        }
+    };
+
     R _receiver;
     context* _ctx;
     int _fd;
@@ -26,15 +45,12 @@ struct operation
     } _peer;
 
     socklen_t _peer_len;
+    std::optional<std::stop_callback<cancel_callback>> _stop_callback;
 
-    template <typename U>
-    operation(
-            U&& receiver,
-            context* ctx,
-            int fd)
-        : _receiver{std::forward<U>(receiver)}
-        , _ctx{ctx}
-        , _fd{fd}
+    explicit operation(operation_descr<R>&& descr)
+        : _receiver{std::move(descr._receiver)}
+        , _ctx{descr._ctx}
+        , _fd{descr._fd}
         , _peer{}
         , _peer_len{sizeof(_peer)}
     {}
@@ -47,27 +63,49 @@ struct operation
         io_uring_prep_accept(sqe, _fd, &_peer.addr, &_peer_len, 0);
         io_uring_sqe_set_data(sqe, this);
 
+        _stop_callback.emplace(
+            execution::get_stop_token(_receiver),
+            cancel_callback{this});
+
+        _ctx->submit();
+    }
+
+    void cancel()
+    {
+        auto* sqe = _ctx->get_sqe();
+        assert(sqe);
+
+        io_uring_prep_cancel(sqe, this, 0);
+
         _ctx->submit();
     }
 
     void completion(io_uring_cqe* cqe) noexcept override
     {
-        if (auto ec = make_error_code(cqe->res)) {
+        auto ec = make_error_code(cqe->res);
+
+        if (ec == std::errc::operation_canceled) {
+            execution::set_stopped(std::move(_receiver));
+            return;
+        }
+
+        if (ec) {
             execution::set_error(std::move(_receiver), ec);
-        } else {
-            switch (_peer.addr.sa_family) {
-                case AF_INET:
-                    execution::set_value(std::move(_receiver), cqe->res, _peer.addr4);
-                    break;
-                case AF_INET6:
-                    execution::set_value(std::move(_receiver), cqe->res, _peer.addr6);
-                    break;
-                default:
-                    execution::set_error(
-                        std::move(_receiver),
-                        std::make_error_code(std::errc::address_family_not_supported)
-                    );
-            }
+            return;
+        }
+
+        switch (_peer.addr.sa_family) {
+            case AF_INET:
+                execution::set_value(std::move(_receiver), cqe->res, _peer.addr4);
+                break;
+            case AF_INET6:
+                execution::set_value(std::move(_receiver), cqe->res, _peer.addr6);
+                break;
+            default:
+                execution::set_error(
+                    std::move(_receiver),
+                    std::make_error_code(std::errc::address_family_not_supported)
+                );
         }
     }
 };
@@ -90,7 +128,7 @@ struct sender
     template <typename R>
     auto connect(R&& receiver) &
     {
-        return operation<R>{
+        return operation_descr<std::decay_t<R>>{
             std::forward<R>(receiver),
             _ctx,
             _fd
@@ -100,7 +138,7 @@ struct sender
     template <typename R>
     auto connect(R&& receiver) &&
     {
-        return operation<R>{
+        return operation_descr<std::decay_t<R>>{
             std::forward<R>(receiver),
             _ctx,
             _fd

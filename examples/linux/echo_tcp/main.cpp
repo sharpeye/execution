@@ -122,7 +122,11 @@ struct connection
 
 int main(int argc, char** argv)
 {
+    static std::stop_source stop_source;
+
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGINT,  [] (int) { stop_source.request_stop(); });
+    signal(SIGTERM, [] (int) { stop_source.request_stop(); });
 
     try {
         int const port = argc > 1
@@ -150,7 +154,9 @@ int main(int argc, char** argv)
                 );
               })
             | repeat_effect()
-            | this_thread::sync_wait();
+            | upon_error([] (auto error) { print_error(error); })
+            | finally(uring::close(ctx, s))
+            | this_thread::sync_wait(stop_source);
 
         ctx.stop();
     }

@@ -107,8 +107,6 @@ public:
         return _stop_source.get_token();
     }
 
-    // TODO: cancellation (io_uring_prep_cancel)
-
 private:
     void loop()
     {
@@ -121,11 +119,9 @@ private:
             }
 
             auto* op = static_cast<operation_base*>(io_uring_cqe_get_data(cqe));
-            if (!op) {
-                continue;
+            if (op) {
+                op->completion(cqe);
             }
-
-            op->completion(cqe);
 
             cqe_seen(cqe);
         }

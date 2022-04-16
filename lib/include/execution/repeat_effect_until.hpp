@@ -49,6 +49,14 @@ struct source_receiver
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename R, typename S, typename F>
+struct operation_descr
+{
+    R _receiver;
+    S _source;
+    F _condition;
+};
+
+template <typename R, typename S, typename F>
 struct operation
 {
     using source_receiver_t = source_receiver<R, S, F>;
@@ -72,11 +80,10 @@ struct operation
 
     state_t _state;
 
-    template <typename T, typename U, typename V>
-    operation(T&& receiver, U&& src, V&& cond)
-        : _receiver(std::forward<T>(receiver))
-        , _source(std::forward<U>(src))
-        , _condition(std::forward<V>(cond))
+    explicit operation(operation_descr<R, S, F>&& descr)
+        : _receiver(std::move(descr._receiver))
+        , _source(std::move(descr._source))
+        , _condition(std::move(descr._condition))
     {}
 
     void start() & noexcept
@@ -137,7 +144,7 @@ struct sender
     template <typename R>
     auto connect(R&& receiver) &
     {
-        return operation<R, S, F>{
+        return operation_descr<R, S, F>{
             std::forward<R>(receiver),
             _source,
             _condition
@@ -147,7 +154,7 @@ struct sender
     template <typename R>
     auto connect(R&& receiver) &&
     {
-        return operation<R, S, F>{
+        return operation_descr<R, S, F>{
             std::forward<R>(receiver),
             std::move(_source),
             std::move(_condition)

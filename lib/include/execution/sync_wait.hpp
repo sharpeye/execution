@@ -21,41 +21,52 @@ using namespace execution;
 template <typename T>
 struct receiver
 {
-    std::promise<T>& promise;
+    std::promise<T>& _promise;
+    std::stop_source _stop_source;
 
     template <typename ... Ts>
     void set_value(Ts&& ... values)
     {
-        promise.set_value(decayed_tuple_t<Ts...>{std::forward<Ts>(values)...});
+        _promise.set_value(decayed_tuple_t<Ts...>{std::forward<Ts>(values)...});
     }
 
     void set_error(std::exception_ptr ex)
     {
-        promise.set_exception(std::move(ex));
+        _promise.set_exception(std::move(ex));
     }
 
     void set_error(std::error_code ec)
     {
-        promise.set_exception(std::make_exception_ptr(
+        _promise.set_exception(std::make_exception_ptr(
             std::system_error{ec}));
     }
 
     template <typename E>
     void set_error(E&& error)
     {
-        promise.set_exception(std::make_exception_ptr(std::forward<E>(error)));
+        _promise.set_exception(std::make_exception_ptr(std::forward<E>(error)));
     }
 
     void set_stopped()
     {
-        promise.set_value(std::nullopt);
+        _promise.set_value(std::nullopt);
+    }
+
+    // tag_invoke
+
+    friend auto tag_invoke(tag_t<get_stop_token>, const receiver<T>& self) noexcept
+    {
+        return self._stop_source.get_token();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T, typename ... Ts>
-auto do_sync_wait(T&& sender, meta::atom<signature<Ts...>> expected_result_type)
+auto do_sync_wait(
+    T&& sender,
+    std::stop_source ss,
+    meta::atom<signature<Ts...>> expected_result_type)
 {
     using result_t = std::optional<decayed_tuple_t<Ts...>>;
 
@@ -65,12 +76,19 @@ auto do_sync_wait(T&& sender, meta::atom<signature<Ts...>> expected_result_type)
         sender_type,
         receiver_type);
 
+    using operation_t = typename decltype(traits::sender_operation(
+        sender_type, receiver_type))::type;
+
     static_assert(meta::contains(value_types, expected_result_type));
 
     std::promise<result_t> promise;
     auto future = promise.get_future();
 
-    auto op = connect(std::forward<T>(sender), receiver<result_t>{promise});
+    operation_t op {connect(
+        std::forward<T>(sender),
+        receiver<result_t>{promise, std::move(ss)}
+    )};
+
     start(op);
 
     return future.get();
@@ -86,11 +104,23 @@ struct sync_wait_r
         return pipeable(*this);
     }
 
+    auto operator () (std::stop_source ss) const
+    {
+        return pipeable(*this, std::move(ss));
+    }
+
     template <typename T>
     auto operator () (T&& sender) const
     {
+        return sync_wait_r{}(std::forward<T>(sender), std::stop_source{});
+    }
+
+    template <typename T>
+    auto operator () (T&& sender, std::stop_source ss) const
+    {
         return do_sync_wait(
             std::forward<T>(sender),
+            std::move(ss),
             meta::atom<signature<Ts...>>{}
         );
     }
@@ -105,8 +135,19 @@ struct sync_wait
         return pipeable(*this);
     }
 
+    auto operator () (std::stop_source ss) const
+    {
+        return pipeable(*this, std::move(ss));
+    }
+
     template <typename T>
     auto operator () (T&& sender) const
+    {
+        return sync_wait{}(std::forward<T>(sender), std::stop_source{});
+    }
+
+    template <typename T>
+    auto operator () (T&& sender, std::stop_source ss) const
     {
         constexpr auto sender_type = meta::atom<std::decay_t<T>>{};
         constexpr auto receiver_type = meta::atom<null_receiver>{};
@@ -116,7 +157,11 @@ struct sync_wait
 
         static_assert(value_types.size == 1);
 
-        return do_sync_wait(std::forward<T>(sender), value_types.head);
+        return do_sync_wait(
+            std::forward<T>(sender),
+            std::move(ss),
+            value_types.head
+        );
     }
 };
 
