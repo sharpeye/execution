@@ -22,7 +22,7 @@ struct operation_descr
 
 template <typename R>
 struct operation
-    : operation_base
+    : operation_impl<operation<R>>
 {
     struct cancel_callback
     {
@@ -80,7 +80,7 @@ struct operation
         _ctx->submit();
     }
 
-    void completion(io_uring_cqe* cqe) noexcept override
+    void completion(io_uring_cqe* cqe) noexcept
     {
         auto ec = make_error_code(cqe->res);
 

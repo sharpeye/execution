@@ -16,8 +16,23 @@ namespace uring {
 
 struct operation_base
 {
-    virtual ~operation_base() = default;
-    virtual void completion(io_uring_cqe* cqe) noexcept = 0;
+    using completion_t = void (operation_base::*)(io_uring_cqe* cqe) noexcept;
+
+    completion_t _completion;
+
+    template <typename F>
+    explicit operation_base(F func)
+        : _completion{ static_cast<completion_t>(func) }
+    {}
+};
+
+template <typename T>
+struct operation_impl
+    : operation_base
+{
+    operation_impl()
+        : operation_base{ &T::completion }
+    {}
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,7 +135,7 @@ private:
 
             auto* op = static_cast<operation_base*>(io_uring_cqe_get_data(cqe));
             if (op) {
-                op->completion(cqe);
+                std::invoke(op->_completion, op, cqe);
             }
 
             cqe_seen(cqe);

@@ -11,7 +11,7 @@ namespace close_impl {
 
 template <typename R>
 struct operation
-    : operation_base
+    : operation_impl<operation<R>>
 {
     R _receiver;
     context* _ctx;
@@ -38,7 +38,7 @@ struct operation
         _ctx->submit();
     }
 
-    void completion(io_uring_cqe*) noexcept override
+    void completion(io_uring_cqe*) noexcept
     {
         execution::set_value(std::move(_receiver));
     }

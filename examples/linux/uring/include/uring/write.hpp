@@ -14,7 +14,7 @@ namespace write_impl {
 
 template <typename R>
 struct operation
-    : operation_base
+    : operation_impl<operation<R>>
 {
     R _receiver;
     context* _ctx;
@@ -38,7 +38,7 @@ struct operation
         submit();
     }
 
-    void completion(io_uring_cqe* cqe) noexcept override
+    void completion(io_uring_cqe* cqe) noexcept
     {
         using namespace ::execution;
 
