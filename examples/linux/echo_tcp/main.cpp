@@ -4,7 +4,7 @@
 #include <execution/let_value.hpp>
 #include <execution/repeat_effect_until.hpp>
 #include <execution/sequence.hpp>
-#include <execution/submit.hpp>
+#include <execution/start_detached.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
 #include <execution/upon_error.hpp>
@@ -144,7 +144,7 @@ int main(int argc, char** argv)
             | then([&] (int s, auto const& peer) {
                 std::clog << "new connection: " << to_string(peer) << '\n';
 
-                submit(just(connection{s})
+                start_detached(just(connection{s})
                     | let_value([&] (connection& conn) {
                         return conn.process(ctx);
                     })

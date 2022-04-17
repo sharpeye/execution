@@ -1,4 +1,4 @@
-#include <execution/submit.hpp>
+#include <execution/start_detached.hpp>
 
 #include <execution/just.hpp>
 #include <execution/let_value.hpp>
@@ -15,7 +15,7 @@ using namespace execution;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(submit, test)
+TEST(start_detached, test)
 {
     simple_thread_pool pool{1};
     auto sched = pool.get_scheduler();
@@ -26,7 +26,7 @@ TEST(submit, test)
     auto s = signal.get_future();
     auto v = value.get_future();
 
-    submit(
+    start_detached(
         schedule(sched)
             | let_value([&] {
                 return just() | then([&] {

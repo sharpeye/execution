@@ -9,17 +9,17 @@
 
 namespace execution {
 
-namespace submit_impl {
+namespace start_detached_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct receiver
 {
-    std::shared_ptr<void> _state;
+    std::shared_ptr<void> _storage;
 
     void set_value()
     {
-        _state.reset();
+        _storage.reset();
     }
 
     template <typename E>
@@ -35,12 +35,12 @@ struct receiver
 };
 
 template <typename T>
-struct state
+struct state_storage
 {
     std::optional<T> _operation;
 };
 
-struct submit
+struct start_detached
 {
     template <typename S>
     void operator () (S&& sender) const
@@ -56,7 +56,7 @@ struct submit
 
         using T = typename decltype(operation_type)::type;
 
-        auto s = std::make_shared<state<T>>();
+        auto s = std::make_shared<state_storage<T>>();
         auto& op = s->_operation.emplace(
             execution::connect(std::forward<S>(sender), receiver{s}));
 
@@ -64,10 +64,10 @@ struct submit
     }
 };
 
-}   // namespace submit_impl
+}   // namespace start_detached_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto submit = submit_impl::submit{};
+constexpr auto start_detached = start_detached_impl::start_detached{};
 
 }   // namespace execution
