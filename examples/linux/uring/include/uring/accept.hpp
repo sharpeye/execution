@@ -126,17 +126,7 @@ struct sender
     int _fd;
 
     template <typename R>
-    auto connect(R&& receiver) &
-    {
-        return operation_descr<std::decay_t<R>>{
-            std::forward<R>(receiver),
-            _ctx,
-            _fd
-        };
-    }
-
-    template <typename R>
-    auto connect(R&& receiver) &&
+    auto connect(R&& receiver) const
     {
         return operation_descr<std::decay_t<R>>{
             std::forward<R>(receiver),

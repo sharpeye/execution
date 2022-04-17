@@ -34,19 +34,23 @@ void print_error(std::error_code ec)
 
 using namespace execution;
 
+constexpr std::string_view help_str =
+R"(commands:
+    help - print help
+    list - print objects
+    new NAME - create object with name NAME
+    del NAME - delete object with name NAME
+    quit - quit from app
+
+)";
+
 struct application
 {
     std::set<std::string> _objects;
 
     auto process(commands::help)
     {
-        std::cout << "commands:\n"
-            "  help - print help\n"
-            "  list - print objects\n"
-            "  new NAME - create object with name NAME\n"
-            "  del NAME - delete object with name NAME\n"
-            "  quit - quit from app\n\n"
-        ;
+        std::cout << help_str;
 
         return just();
     }

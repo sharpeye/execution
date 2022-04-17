@@ -90,24 +90,13 @@ struct sender
     std::span<std::byte const> _buffer;
 
     template <typename R>
-    auto connect(R&& receiver) &
+    auto connect(R&& receiver) const
     {
         return operation<R>{
             std::forward<R>(receiver),
             _ctx,
             _fd,
             _buffer
-        };
-    }
-
-    template <typename R>
-    auto connect(R&& receiver) &&
-    {
-        return operation<R>{
-            std::forward<R>(receiver),
-            _ctx,
-            _fd,
-            std::move(_buffer)
         };
     }
 };

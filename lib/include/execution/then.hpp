@@ -126,17 +126,19 @@ struct sender_traits
 
     static constexpr auto get_invoke_result =
         [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
-            return meta::atom<signature<std::invoke_result_t<F, Ts...>>>{};
+            using result_t = std::invoke_result_t<F, Ts...>;
+            return meta::atom<std::conditional_t<
+                std::is_void_v<result_t>,
+                signature<>,
+                signature<result_t>
+            >>{};
         };
 
-    static constexpr auto value_types = 
-        meta::replace(
-            meta::transform_unique(
-                traits::sender_values(predecessor_type, receiver_type),
-                get_invoke_result
-            ),
-            meta::atom<signature<void>>{},
-            meta::atom<signature<>>{});
+    static constexpr auto value_types =
+        meta::transform_unique(
+            traits::sender_values(predecessor_type, receiver_type),
+            get_invoke_result
+        );
 
     static constexpr bool is_nothrow = meta::is_all(
         traits::sender_values(predecessor_type, receiver_type),

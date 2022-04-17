@@ -89,6 +89,10 @@ struct operation
             return traits::sender_operation(s, receiver_type);
         });
 
+    static constexpr auto as_tuple = [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
+        return meta::atom<decayed_tuple_t<Ts...>>{};
+    };
+
     using state_t = variant_t<decltype(
           predecessor_type
         | predecessor_operation_type
@@ -97,7 +101,7 @@ struct operation
 
     using values_t = variant_t<decltype(
           meta::atom<std::monostate>{}
-        | meta::transform(predecessor_value_types, meta::convert_to<decayed_tuple_t>)
+        | meta::transform(predecessor_value_types, as_tuple)
     )>;
 
     F _factory;

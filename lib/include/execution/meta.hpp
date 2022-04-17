@@ -63,15 +63,6 @@ struct list<H, Ts...>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <template <typename...> typename F>
-constexpr auto convert_to = [] <template <typename...> typename U, typename ... Ts>
-        (meta::atom<U<Ts...>>) constexpr
-    {
-        return meta::atom<F<Ts...>>{};
-    };
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <typename T, typename H>
 constexpr bool operator == (atom<T>, atom<H>)
 {
@@ -173,60 +164,6 @@ template <typename ... Ts, typename F>
 constexpr auto transform_unique(list<Ts...> ls, F func)
 {
     return unique(transform(ls, func));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename ... Ts, typename I, typename F>
-constexpr auto fold(list<Ts...> ls, I init, F func)
-{
-    if constexpr (ls.size == 0) {
-        return init;
-    } else {
-        return fold(ls.tail, func(init, ls.head), func);
-    }
-}
-
-template <typename ... Ts, typename I, typename F>
-constexpr auto fold_unique(list<Ts...> ls, I init, F func)
-{
-    return unique(fold(ls, init, func));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename ... Ts, typename T, typename U>
-constexpr auto replace(list<Ts...> ls, T old_value, U new_value)
-{
-    if constexpr (ls.size == 0) {
-        return ls;
-    } else {
-        auto tail = replace(ls.tail, old_value, new_value);
-
-        if constexpr (ls.head == old_value) {
-            return new_value | tail;
-        } else {
-            return ls.head | tail;
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename ... Ts, typename T>
-constexpr auto remove(list<Ts...> ls, T value)
-{
-    if constexpr (ls.size == 0) {
-        return ls;
-    } else {
-        auto tail = remove(ls.tail, value);
-
-        if constexpr (ls.head == value) {
-            return tail;
-        } else {
-            return ls.head | tail;
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

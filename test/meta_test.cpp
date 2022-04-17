@@ -51,23 +51,9 @@ TEST(meta, list)
     static_assert(unique(ls | ls) == ls);
     static_assert(unique(nothing) == nothing);
 
-    static_assert(replace(ls, atom<double>{}, atom<float>{}) == list<int, char, float>{});
-    static_assert(remove(ls, atom<double>{}) == list<int, char>{});
-
-    static_assert(fold(iota<3>, index_t<0>{}, [] <int s, int i> (index_t<s>, index_t<i>) {
-        return index_t<s + i>{};
-    }) == index_t<3>{});
-
     static_assert(transform(iota<3>, [] <int i> (index_t<i>) {
         return index_t<i + i>{};
     }) == list<int_constant_t<0>, int_constant_t<2>, int_constant_t<4>>{});
-
-    static_assert(
-        transform(
-            list<std::variant<int>, std::variant<char>, std::variant<double>>{},
-            convert_to<std::tuple>)
-        == list<std::tuple<int>, std::tuple<char>, std::tuple<double>>{}
-    );
 
     static_assert(
         chain(list<list<int>, list<char>, list<double>>{}).head == atom<int>{}
