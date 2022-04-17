@@ -40,7 +40,7 @@ struct upon_error_receiver
             );
         } catch (...) {
             execution::set_error(
-                std::forward<R>(_receiver),
+                std::move(_receiver),
                 std::current_exception()
             );
         }
