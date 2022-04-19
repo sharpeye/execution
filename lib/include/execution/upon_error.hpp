@@ -31,19 +31,11 @@ struct upon_error_receiver
     template <typename E>
     void set_error(E&& error)
     {
-        // TODO: noexcept _func
-        try {
-            execution::set_value_with(
-                std::move(_receiver),
-                std::move(_func),
-                std::forward<E>(error)
-            );
-        } catch (...) {
-            execution::set_error(
-                std::move(_receiver),
-                std::current_exception()
-            );
-        }
+        execution::set_value_with(
+            std::move(_receiver),
+            std::move(_func),
+            std::forward<E>(error)
+        );
     }
 
     void set_stopped()
