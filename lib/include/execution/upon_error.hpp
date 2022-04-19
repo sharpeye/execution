@@ -130,12 +130,7 @@ struct sender_traits
 
     static constexpr auto get_invoke_result =
         [] <typename E> (meta::atom<E>) {
-            using result_t = std::invoke_result_t<F, E>;
-            if constexpr (std::is_void_v<result_t>) {
-                return meta::atom<signature<>>{};
-            } else {
-                return meta::atom<signature<result_t>>{};
-            }
+            return traits::invoke_result_as_signature<F, E>();
         };
 
     static constexpr auto value_types = meta::concat_unique(
