@@ -9,12 +9,12 @@
 
 namespace execution {
 
-namespace then_impl {
+namespace upon_stopped_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename R>
-struct then_receiver
+struct upon_stopped_receiver
 {
     F _func;
     R _receiver;
@@ -22,9 +22,8 @@ struct then_receiver
     template <typename ... Ts>
     void set_value(Ts&& ... values)
     {
-        execution::set_value_with(
+        execution::set_value(
             std::move(_receiver),
-            std::move(_func),
             std::forward<Ts>(values)...
         );
     }
@@ -32,16 +31,28 @@ struct then_receiver
     template <typename E>
     void set_error(E&& error)
     {
-        execution::set_error(std::move(_receiver), std::forward<E>(error));
+        execution::set_error(
+            std::move(_receiver),
+            std::forward<E>(error));
     }
 
     void set_stopped()
     {
-        execution::set_stopped(std::move(_receiver));
+        // TODO: noexcept _func
+        try {
+            execution::set_value_with(
+                std::move(_receiver),
+                std::move(_func));
+        } catch (...) {
+            execution::set_error(
+                std::move(_receiver),
+                std::current_exception()
+            );
+        }
     }
 
     template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, then_receiver<F, R> const& self, Ts&& ... args)
+    friend auto tag_invoke(Tag tag, upon_stopped_receiver<F, R> const& self, Ts&& ... args)
         noexcept(is_nothrow_tag_invocable_v<Tag, R, Ts...>)
         -> tag_invoke_result_t<Tag, R, Ts...>
     {
@@ -68,7 +79,7 @@ struct sender
     {
         return execution::connect(
             _predecessor,
-            then_receiver<F, R>{
+            upon_stopped_receiver<F, R>{
                 std::move(_func),
                 std::forward<R>(receiver)
             });
@@ -79,7 +90,7 @@ struct sender
     {
         return execution::connect(
             std::move(_predecessor),
-            then_receiver<F, R>{
+            upon_stopped_receiver<F, R>{
                 std::move(_func),
                 std::forward<R>(receiver)
             });
@@ -88,7 +99,7 @@ struct sender
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct then
+struct upon_stopped
 {
     template <typename F>
     constexpr auto operator () (F&& func) const
@@ -112,61 +123,34 @@ template <typename P, typename F, typename R>
 struct sender_traits
 {
     static constexpr auto predecessor_type = meta::atom<P>{};
-    static constexpr auto func_type = meta::atom<F>{};
-
-    static constexpr auto receiver_type = meta::atom<then_receiver<F, R>>{};
-
+    static constexpr auto receiver_type = meta::atom<upon_stopped_receiver<F, R>>{};
     static constexpr auto operation_type = traits::sender_operation(
-        predecessor_type,
-        receiver_type);
-
-    static constexpr auto predecessor_value_types = traits::sender_values(
-        predecessor_type,
-        receiver_type);
-
-    static constexpr auto get_invoke_result =
-        [] <typename ... Ts> (meta::atom<signature<Ts...>>) {
-            return traits::invoke_result_as_signature<F, Ts...>();
-        };
-
-    static constexpr auto value_types =
-        meta::transform_unique(
+        predecessor_type, receiver_type);
+    static constexpr auto value_types = meta::concat_unique(
             traits::sender_values(predecessor_type, receiver_type),
-            get_invoke_result
+            traits::invoke_result_as_signature<F>()
         );
-
-    static constexpr bool is_nothrow = meta::is_all(
-        traits::sender_values(predecessor_type, receiver_type),
-        [] (auto values) {
-            return traits::is_nothrow_invocable(func_type, values);
-        });
-
     static constexpr auto error_types = meta::concat_unique(
         traits::sender_errors(predecessor_type, receiver_type),
-        [] {
-            if constexpr (is_nothrow) {
-                return meta::list<>{};
-            } else {
-                return meta::list<std::exception_ptr>{};
-            }
-        } ());
+        meta::list<std::exception_ptr>{} // TODO: F noexcept
+    );
 
     using operation_t = typename decltype(operation_type)::type;
     using errors_t = decltype(error_types);
     using values_t = decltype(value_types);
 };
 
-}   // namespace then_impl
+}   // namespace upon_stopped_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename P, typename F, typename R>
-struct sender_traits<then_impl::sender<P, F>, R>
-    : then_impl::sender_traits<P, F, R>
+struct sender_traits<upon_stopped_impl::sender<P, F>, R>
+    : upon_stopped_impl::sender_traits<P, F, R>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto then = then_impl::then{};
+constexpr auto upon_stopped = upon_stopped_impl::upon_stopped{};
 
 }   // namespace execution

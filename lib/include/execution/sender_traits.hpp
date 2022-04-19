@@ -50,9 +50,13 @@ constexpr auto sender_values = [] <typename S, typename R> (
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename F, typename ... Ts>
-constexpr auto invoke_result(meta::atom<F>, meta::atom<signature<Ts...>>)
+constexpr auto invoke_result_as_signature()
 {
-    return meta::atom<std::invoke_result_t<F, Ts...>>{};
+    if constexpr (std::is_void_v<std::invoke_result_t<F, Ts...>>) {
+        return meta::atom<signature<>>{};
+    } else {
+        return meta::atom<signature<std::invoke_result_t<F, Ts...>>>{};
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
