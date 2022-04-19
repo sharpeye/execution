@@ -22,13 +22,13 @@ struct receiver
         _storage.reset();
     }
 
-    template <typename E>
-    [[ noreturn ]] void set_error(E&&)
+    void set_stopped()
     {
-        std::terminate();
+        _storage.reset();
     }
 
-    [[ noreturn ]] void set_stopped()
+    template <typename E>
+    [[ noreturn ]] void set_error(E&&)
     {
         std::terminate();
     }
