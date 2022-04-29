@@ -27,11 +27,12 @@ struct shared_state
 {
     T _storage;
     std::stop_source _stop_source;
-    std::atomic<int> _flag;
+    std::atomic_flag _flag = {};
 
     void* _obj = nullptr;
     void (*_finish)(void*) = nullptr;
 
+    // TODO: unique_ptr
     std::shared_ptr<void> _operation;
 };
 
@@ -45,38 +46,38 @@ struct receiver
     template <typename ... Ts>
     void set_value(Ts&& ... values)
     {
-        _state->_storage.template emplace<std::tuple<values_tag, std::decay_t<Ts>...>>(
+        std::shared_ptr<T> state = std::move(_state);
+
+        state->_storage.template emplace<std::tuple<values_tag, std::decay_t<Ts>...>>(
             values_tag{}, std::forward<Ts>(values)...);
 
-        if (_state->_flag.fetch_add(1) == 1) {
-            _state->_finish(_state->_obj);
+        if (state->_flag.test_and_set()) {
+            state->_finish(state->_obj);
         }
-
-        _state.reset();
     }
 
     void set_stopped()
     {
-        _state->_storage = std::tuple<stopped_tag>{};
+        std::shared_ptr<T> state = std::move(_state);
 
-        if (_state->_flag.fetch_add(1) == 1) {
-            _state->_finish(_state->_obj);
+        state->_storage = std::tuple<stopped_tag>{};
+
+        if (state->_flag.test_and_set()) {
+            state->_finish(state->_obj);
         }
-
-        _state.reset();
     }
 
     template <typename E>
     void set_error(E&& error)
     {
-        _state->_storage.template emplace<std::tuple<error_tag, std::decay_t<E>>>(
+        std::shared_ptr<T> state = std::move(_state);
+
+        state->_storage.template emplace<std::tuple<error_tag, std::decay_t<E>>>(
             error_tag{}, std::forward<E>(error));
 
-        if (_state->_flag.fetch_add(1) == 1) {
-            _state->_finish(_state->_obj);
+        if (state->_flag.test_and_set()) {
+            state->_finish(state->_obj);
         }
-
-        _state.reset();
     }
 
     // tag_invoke
@@ -115,7 +116,7 @@ struct operation
             static_cast<operation<R, T>*>(obj)->finish();
         };
 
-        if (_state->_flag.fetch_add(1) == 1) {
+        if (_state->_flag.test_and_set()) {
             finish();
         }
     }

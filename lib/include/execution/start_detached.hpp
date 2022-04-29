@@ -34,12 +34,6 @@ struct receiver
     }
 };
 
-template <typename T>
-struct state_storage
-{
-    std::optional<T> _operation;
-};
-
 struct start_detached
 {
     template <typename S>
@@ -54,13 +48,14 @@ struct start_detached
 
         static_assert(value_types == meta::list<signature<>>{});
 
-        using T = typename decltype(operation_type)::type;
+        using operation_t = typename decltype(operation_type)::type;
 
-        auto s = std::make_shared<state_storage<T>>();
-        auto& op = s->_operation.emplace(
+        auto s = std::make_shared<std::optional<operation_t>>();
+
+        auto& op = s->emplace(
             execution::connect(std::forward<S>(sender), receiver{s}));
 
-        op.start();
+        execution::start(op);
     }
 };
 
