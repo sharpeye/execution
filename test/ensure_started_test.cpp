@@ -66,6 +66,21 @@ TEST(ensure_started, test)
     EXPECT_EQ(42, r);
 }
 
+TEST(ensure_started, discard)
+{
+    simple_thread_pool pool{1};
+    auto sched = pool.get_scheduler();
+
+    std::promise<int> promise;
+    auto future = promise.get_future();
+
+    ensure_started(schedule_after(sched, 100ms) | upon_stopped([&] {
+        promise.set_value(42);
+    }));
+
+    EXPECT_EQ(42, future.get());
+}
+
 TEST(ensure_started, stopped)
 {
     simple_thread_pool pool{1};
@@ -74,11 +89,14 @@ TEST(ensure_started, stopped)
     std::promise<int> promise;
     auto future = promise.get_future();
 
-    {
-        auto s = ensure_started(schedule_after(sched, 100ms) | upon_stopped([&] {
+    std::stop_source stop_source;
+    stop_source.request_stop();
+
+    auto r = this_thread::sync_wait(
+        ensure_started(schedule_after(sched, 100ms) | upon_stopped([&] {
             promise.set_value(42);
-        }));
-    }
+        })),
+        stop_source);
 
     EXPECT_EQ(42, future.get());
 }

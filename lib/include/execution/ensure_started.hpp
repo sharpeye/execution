@@ -93,8 +93,19 @@ struct receiver
 template <typename R, typename T>
 struct operation
 {
+    struct cancel_callback
+    {
+        operation<R, T>* _this;
+
+        void operator () () noexcept
+        {
+            _this->cancel();
+        }
+    };
+
     R _receiver;
     std::shared_ptr<T> _state;
+    std::optional<std::stop_callback<cancel_callback>> _stop_callback;
 
     template <typename U>
     operation(U&& receiver, std::shared_ptr<T>&& state)
@@ -111,6 +122,10 @@ struct operation
 
     void start() & noexcept
     {
+        _stop_callback.emplace(
+            execution::get_stop_token(_receiver),
+            cancel_callback{this});
+
         _state->_obj = this;
         _state->_finish = [] (void* obj) {
             static_cast<operation<R, T>*>(obj)->finish();
@@ -123,6 +138,7 @@ struct operation
 
     void finish()
     {
+        _stop_callback.reset();
         std::shared_ptr<T> state = std::move(_state);
 
         try {
@@ -160,6 +176,11 @@ struct operation
     [[ noreturn ]] void set_by_tag(init_tag, Ts&&...)
     {
         std::terminate();
+    }
+
+    void cancel()
+    {
+        _state->_stop_source.request_stop();
     }
 };
 
