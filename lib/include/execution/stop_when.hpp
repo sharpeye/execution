@@ -145,11 +145,6 @@ class operation
 
     using state_t = std::variant<std::monostate, operations>;
 
-    struct init_tag {};
-    struct stopped_tag {};
-    struct values_tag {};
-    struct error_tag {};
-
     static constexpr auto source_value_types = traits::sender_values(
         source_type,
         source_receiver_type);
@@ -161,20 +156,20 @@ class operation
     static constexpr auto value_types = meta::transform(
         source_value_types,
         []<typename ... Ts>(meta::atom<signature<Ts...>>) {
-            return meta::atom<decayed_tuple_t<values_tag, Ts...>>{};
+            return meta::atom<decayed_tuple_t<set_value_fn, Ts...>>{};
         }
     );
 
     static constexpr auto error_types = meta::transform(
         source_error_types,
         []<typename E>(meta::atom<E>) {
-            return meta::atom<std::tuple<error_tag, E>>{};
+            return meta::atom<std::tuple<set_error_fn, E>>{};
         }
     );
 
     using storage_t = variant_t<decltype(
-          meta::atom<std::tuple<init_tag, S, T>>{}
-        | meta::atom<std::tuple<stopped_tag>>{}
+          meta::atom<std::tuple<std::monostate, S, T>>{}
+        | meta::atom<std::tuple<set_stopped_fn>>{}
         | value_types
         | error_types
     )>;
@@ -191,7 +186,7 @@ public:
         : _receiver(std::forward<Rx>(receiver))
         , _storage{
             std::in_place_index<0>,
-            init_tag{},
+            std::monostate{},
             std::forward<Sx>(src),
             std::forward<Tx>(trigger)
         }
@@ -216,10 +211,10 @@ public:
     template <typename ... Ts>
     void set_value(Ts&& ... values)
     {
-        using tuple_t = decayed_tuple_t<values_tag, Ts...>;
+        using tuple_t = decayed_tuple_t<set_value_fn, Ts...>;
 
         _storage.template emplace<tuple_t>(
-            values_tag{},
+            execution::set_value,
             std::forward<Ts>(values)...
         );
 
@@ -229,10 +224,10 @@ public:
     template <typename E>
     void set_error(E&& error)
     {
-        using tuple_t = decayed_tuple_t<error_tag, E>;
+        using tuple_t = decayed_tuple_t<set_error_fn, E>;
 
         _storage.template emplace<tuple_t>(
-            error_tag{},
+            execution::set_error,
             std::forward<E>(error)
         );
 
@@ -241,7 +236,7 @@ public:
 
     void set_stopped()
     {
-        _storage.template emplace<std::tuple<stopped_tag>>();
+        _storage = std::make_tuple(execution::set_stopped);
 
         notify_operation_complete();
     }
@@ -263,25 +258,14 @@ public:
         ops._stop_source.request_stop();
     }
 
-    template <typename E>
-    void set_by_tag(error_tag, E&& error)
+    template <typename CPO, typename ... Ts>
+    void invoke_cpo(CPO cpo, Ts&& ... values)
     {
-        execution::set_error(std::move(_receiver), std::move(error));
-    }
-
-    template <typename ... Ts>
-    void set_by_tag(values_tag, Ts&& ... values)
-    {
-        execution::set_value(std::move(_receiver), std::move(values)...);
-    }
-
-    void set_by_tag(stopped_tag)
-    {
-        execution::set_stopped(std::move(_receiver));
+        cpo(std::move(_receiver), std::move(values)...);
     }
 
     template<typename ... Ts>
-    [[ noreturn ]] void set_by_tag(init_tag, Ts&&...)
+    [[ noreturn ]] void invoke_cpo(std::monostate, Ts&&...)
     {
         std::terminate();
     }
@@ -295,7 +279,7 @@ public:
             std::visit([this] (auto&& tuple) {
                 std::apply(
                     [this] (auto&& ... values) {
-                        set_by_tag(std::move(values)...);
+                        invoke_cpo(std::move(values)...);
                     },
                     std::move(tuple)
                 );

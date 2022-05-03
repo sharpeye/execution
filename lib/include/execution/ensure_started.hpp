@@ -17,11 +17,6 @@ namespace ensure_started_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct init_tag {};
-struct stopped_tag {};
-struct error_tag {};
-struct values_tag {};
-
 template <typename T>
 struct shared_state
 {
@@ -48,8 +43,10 @@ struct receiver
     {
         std::shared_ptr<T> state = std::move(_state);
 
-        state->_storage.template emplace<std::tuple<values_tag, std::decay_t<Ts>...>>(
-            values_tag{}, std::forward<Ts>(values)...);
+        using tuple_t = std::tuple<set_value_fn, std::decay_t<Ts>...>;
+
+        state->_storage.template emplace<tuple_t>(
+            execution::set_value, std::forward<Ts>(values)...);
 
         if (state->_flag.test_and_set()) {
             state->_finish(state->_obj);
@@ -60,7 +57,7 @@ struct receiver
     {
         std::shared_ptr<T> state = std::move(_state);
 
-        state->_storage = std::tuple<stopped_tag>{};
+        state->_storage = std::make_tuple(execution::set_stopped);
 
         if (state->_flag.test_and_set()) {
             state->_finish(state->_obj);
@@ -72,8 +69,10 @@ struct receiver
     {
         std::shared_ptr<T> state = std::move(_state);
 
-        state->_storage.template emplace<std::tuple<error_tag, std::decay_t<E>>>(
-            error_tag{}, std::forward<E>(error));
+        using tuple_t = std::tuple<set_error_fn, std::decay_t<E>>;
+
+        state->_storage.template emplace<tuple_t>(
+            execution::set_error, std::forward<E>(error));
 
         if (state->_flag.test_and_set()) {
             state->_finish(state->_obj);
@@ -145,7 +144,7 @@ struct operation
             std::visit([this] (auto&& tuple) {
                 std::apply(
                     [this] (auto&& ... values) {
-                        set_by_tag(std::move(values)...);
+                        invoke_cpo(std::move(values)...);
                     },
                     std::move(tuple)
                 );
@@ -155,25 +154,13 @@ struct operation
         }
     }
 
-    template <typename E>
-    void set_by_tag(error_tag, E&& error)
+    template <typename CPO, typename ... Ts>
+    void invoke_cpo(CPO cpo, Ts&& ... values)
     {
-        execution::set_error(std::move(_receiver), std::move(error));
+        cpo(std::move(_receiver), std::move(values)...);
     }
 
-    template <typename ... Ts>
-    void set_by_tag(values_tag, Ts&& ... values)
-    {
-        execution::set_value(std::move(_receiver), std::move(values)...);
-    }
-
-    void set_by_tag(stopped_tag)
-    {
-        execution::set_stopped(std::move(_receiver));
-    }
-
-    template<typename ... Ts>
-    [[ noreturn ]] void set_by_tag(init_tag, Ts&&...)
+    [[ noreturn ]] void invoke_cpo()
     {
         std::terminate();
     }
@@ -241,20 +228,20 @@ struct ensure_started
         constexpr auto value_types = meta::transform(
             source_value_types,
             []<typename ... Ts>(meta::atom<signature<Ts...>>) {
-                return meta::atom<std::tuple<values_tag, Ts...>>{};
+                return meta::atom<std::tuple<set_value_fn, Ts...>>{};
             }
         );
 
         constexpr auto error_types = meta::transform(
             source_error_types,
             []<typename E>(meta::atom<E>) {
-                return meta::atom<std::tuple<error_tag, E>>{};
+                return meta::atom<std::tuple<set_error_fn, E>>{};
             }
         );
 
         using storage_t = variant_t<decltype(
-              meta::atom<std::tuple<init_tag>>{}
-            | meta::atom<std::tuple<stopped_tag>>{}
+              meta::atom<std::tuple<>>{}
+            | meta::atom<std::tuple<set_stopped_fn>>{}
             | value_types
             | error_types
         )>;
