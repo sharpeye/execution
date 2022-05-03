@@ -1,5 +1,7 @@
 #pragma once
 
+#include "customization.hpp"
+
 #include <exception>
 #include <functional>
 #include <utility>
@@ -8,11 +10,29 @@ namespace execution {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename R, typename ... Ts>
-constexpr void set_value(R&& receiver, Ts&& ... values)
+inline constexpr struct set_value_fn
 {
-    std::forward<R>(receiver).set_value(std::forward<Ts>(values)...);
-}
+    // default implementation
+    template <typename R, typename ... Ts>
+        requires (!is_tag_invocable_v<set_value_fn, R&&, Ts&&...>)
+    void operator () (R&& receiver, Ts&&... values) const
+    {
+        std::forward<R>(receiver).set_value(std::forward<Ts>(values)...);
+    }
+
+    template <typename R, typename ... Ts>
+        requires is_tag_invocable_v<set_value_fn, R&&, Ts&&...>
+    void operator () (R&& receiver, Ts&& ... values) const
+    {
+        return execution::tag_invoke(
+            *this,
+            std::forward<R>(receiver),
+            std::forward<Ts>(values)...);
+    }
+
+} set_value;
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename R, typename F, typename ... Ts>
 constexpr auto set_value_with(R&& receiver, F&& func, Ts&& ... values) noexcept
@@ -29,7 +49,7 @@ constexpr auto set_value_with(R&& receiver, F&& func, Ts&& ... values) noexcept
         }
     }
     catch (...) {
-        set_error(std::forward<R>(receiver), std::current_exception());
+        execution::set_error(std::forward<R>(receiver), std::current_exception());
     }
 }
 

@@ -12,7 +12,7 @@ namespace execution {
 inline constexpr struct get_stop_token_fn
 {
     // default implementation
-   template <typename R>
+    template <typename R>
         requires (!is_tag_invocable_v<get_stop_token_fn, R>)
     auto operator () (R&&) const noexcept
     {
