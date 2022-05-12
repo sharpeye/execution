@@ -4,11 +4,13 @@
 
 #include <liburing.h>
 
+#include <functional>
+#include <mutex>
 #include <span>
-#include <string_view>
-#include <thread>
 #include <stop_token>
+#include <string_view>
 #include <system_error>
+#include <thread>
 
 namespace uring {
 
@@ -54,15 +56,16 @@ private:
 
     std::stop_source _stop_source;
     std::thread _thread;
+    std::mutex _mtx;
 
 public:
     context() = default;
 
     context(context const&) = delete;
-    context(context&&) = default;
+    context(context&&) = delete;
 
     context& operator = (context const&) = delete;
-    context& operator = (context&&) = default;
+    context& operator = (context&&) = delete;
 
     ~context() noexcept
     {
@@ -97,6 +100,47 @@ public:
         io_uring_queue_exit(&_ring);
     }
 
+    std::stop_token get_stop_token() noexcept
+    {
+        return _stop_source.get_token();
+    }
+
+    template <typename F>
+    std::error_code submit_op(F&& prepare)
+    {
+        std::unique_lock lock {_mtx};
+
+        auto* sqe = get_sqe();
+        if (!sqe) {
+            return make_error_code(ENOBUFS);
+        }
+
+        std::invoke(std::forward<F>(prepare), sqe);
+
+        submit();
+
+        return {};
+    }
+
+private:
+    void loop()
+    {
+        while (!_stop_source.stop_requested()) {
+            io_uring_cqe* cqe = nullptr;
+
+            if (wait_cqe(&cqe)) {
+                std::abort();
+            }
+
+            auto* op = static_cast<operation_base*>(io_uring_cqe_get_data(cqe));
+            if (op) {
+                std::invoke(op->_completion, op, cqe);
+            }
+
+            cqe_seen(cqe);
+        }
+    }
+
     io_uring_sqe* get_sqe() noexcept
     {
         return io_uring_get_sqe(&_ring);
@@ -115,31 +159,6 @@ public:
     std::error_code submit() noexcept
     {
         return make_error_code(io_uring_submit(&_ring));
-    }
-
-    std::stop_token get_stop_token() noexcept
-    {
-        return _stop_source.get_token();
-    }
-
-private:
-    void loop()
-    {
-        while (!_stop_source.stop_requested()) {
-            io_uring_cqe* cqe = nullptr;
-
-            if (wait_cqe(&cqe)) {
-                // XXX
-                continue;
-            }
-
-            auto* op = static_cast<operation_base*>(io_uring_cqe_get_data(cqe));
-            if (op) {
-                std::invoke(op->_completion, op, cqe);
-            }
-
-            cqe_seen(cqe);
-        }
     }
 };
 

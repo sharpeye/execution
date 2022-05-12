@@ -35,13 +35,14 @@ struct operation
 
     void start() & noexcept
     {
-        auto* sqe = _ctx->get_sqe();
-        assert(sqe);
+        auto ec = _ctx->submit_op([this] (io_uring_sqe* sqe) {
+            io_uring_prep_readv(sqe, _fd, &_iov, 1, 0);
+            io_uring_sqe_set_data(sqe, this);
+        });
 
-        io_uring_prep_readv(sqe, _fd, &_iov, 1, 0);
-        io_uring_sqe_set_data(sqe, this);
-
-        _ctx->submit();
+        if (ec) {
+            execution::set_error(std::move(_receiver), ec);
+        }
     }
 
     void completion(io_uring_cqe* cqe) noexcept

@@ -57,27 +57,25 @@ struct operation
 
     void start() & noexcept
     {
-        auto* sqe = _ctx->get_sqe();
-        assert(sqe);
-
-        io_uring_prep_accept(sqe, _fd, &_peer.addr, &_peer_len, 0);
-        io_uring_sqe_set_data(sqe, this);
-
         _stop_callback.emplace(
             execution::get_stop_token(_receiver),
             cancel_callback{this});
 
-        _ctx->submit();
+        auto ec = _ctx->submit_op([this] (io_uring_sqe* sqe) {
+            io_uring_prep_accept(sqe, _fd, &_peer.addr, &_peer_len, 0);
+            io_uring_sqe_set_data(sqe, this);
+        });
+
+        if (ec) {
+            execution::set_error(std::move(_receiver), ec);
+        }
     }
 
     void cancel()
     {
-        auto* sqe = _ctx->get_sqe();
-        assert(sqe);
-
-        io_uring_prep_cancel(sqe, this, 0);
-
-        _ctx->submit();
+        [[ maybe_unused ]] auto ec = _ctx->submit_op([this] (io_uring_sqe* sqe) {
+            io_uring_prep_cancel(sqe, this, 0);
+        });
     }
 
     void completion(io_uring_cqe* cqe) noexcept
