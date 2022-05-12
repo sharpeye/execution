@@ -152,29 +152,6 @@ struct sender
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct bulk
-{
-    template <typename I, typename F>
-        requires std::is_integral_v<I>
-    constexpr auto operator () (I shape, F&& func) const
-    {
-        return pipeable(*this, shape, std::forward<F>(func));
-    }
-
-    template <typename S, typename I, typename F>
-        requires std::is_integral_v<I>
-    constexpr auto operator () (S&& source, I shape, F&& func) const
-    {
-        return sender<std::decay_t<S>, std::decay_t<I>, std::decay_t<F>> {
-            std::forward<S>(source),
-            shape,
-            std::forward<F>(func)
-        };
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <typename R, typename S, typename I, typename F>
 struct sender_traits
 {
@@ -205,6 +182,38 @@ struct sender_traits<bulk_impl::sender<S, I, F>, R>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto bulk = bulk_impl::bulk{};
+inline constexpr struct bulk_fn
+{
+    template <typename I, typename F>
+        requires std::is_integral_v<I>
+    auto operator () (I shape, F&& func) const
+    {
+        return pipeable(*this, shape, std::forward<F>(func));
+    }
+
+    // default implementation
+    template <typename S, typename I, typename F>
+        requires (std::is_integral_v<I> && !is_tag_invocable_v<bulk_fn, S&&, I, F&&>)
+    auto operator () (S&& sender, I shape, F&& func) const
+    {
+        return bulk_impl::sender<std::decay_t<S>, std::decay_t<I>, std::decay_t<F>> {
+            std::forward<S>(sender),
+            shape,
+            std::forward<F>(func)
+        };
+    }
+
+    template <typename S, typename I, typename F>
+        requires (std::is_integral_v<I> && is_tag_invocable_v<bulk_fn, S&&, I, F&&>)
+    void operator () (S&& sender, I shape, F&& func) const
+    {
+        return execution::tag_invoke(
+            *this,
+            std::forward<S>(sender),
+            shape,
+            std::forward<F>(func));
+    }
+
+} bulk;
 
 }   // namespace execution
