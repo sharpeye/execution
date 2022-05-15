@@ -4,6 +4,7 @@
 
 #include <exception>
 #include <functional>
+#include <tuple>
 #include <utility>
 
 namespace execution {
@@ -52,6 +53,24 @@ constexpr auto set_value_with(R&& receiver, F&& func, Ts&& ... values) noexcept
     }
     catch (...) {
         execution::set_error(std::forward<R>(receiver), std::current_exception());
+    }
+}
+
+template <typename R, typename T>
+constexpr auto apply_value(R&& receiver, T&& tuple) noexcept
+{
+    try {
+        std::apply(
+            [&receiver] (auto&& ... values) {
+                execution::set_value(
+                    std::move(receiver),
+                    std::move(values)...
+                );
+            },
+            std::move(tuple)
+        );
+    } catch(...) {
+        execution::set_error(std::move(receiver), std::current_exception());
     }
 }
 

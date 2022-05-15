@@ -1,13 +1,18 @@
 #include <execution/bulk.hpp>
-#include <execution/just.hpp>
 
+#include <execution/just.hpp>
 #include <execution/null_receiver.hpp>
+#include <execution/schedule.hpp>
+#include <execution/simple_thread_pool.hpp>
 #include <execution/sync_wait.hpp>
+#include <execution/transfer_just.hpp>
 
 #include <gtest/gtest.h>
 
 #include <string>
 #include <vector>
+
+using namespace std::chrono_literals;
 
 using namespace execution;
 
@@ -43,7 +48,7 @@ TEST(bulk, traits)
         == meta::list<signature<std::string, double, foo>>{});
 }
 
-TEST(bulk, test)
+TEST(bulk, default_impl)
 {
     constexpr size_t shape = 5;
     constexpr size_t len = 9;
@@ -65,4 +70,25 @@ TEST(bulk, test)
     std::vector const expected { 0, 0, 1, 1, 2, 2, 3, 3, 4 };
 
     EXPECT_EQ(expected, r);
+}
+
+TEST(bulk, threads)
+{
+    simple_thread_pool pool{2};
+
+    auto sched = pool.get_scheduler();
+
+    std::vector<std::thread::id> ids(2);
+
+    const auto main_tid = std::this_thread::get_id();
+
+    auto r = this_thread::sync_wait(
+        transfer_just(sched)
+            | bulk(2, [&] (size_t i) {
+                ids[i] = std::this_thread::get_id();
+            }));
+
+    EXPECT_TRUE(r.has_value());
+    EXPECT_NE(main_tid, ids[0]);
+    EXPECT_NE(main_tid, ids[1]);
 }

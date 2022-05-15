@@ -195,7 +195,8 @@ inline constexpr struct bulk_fn
     // default implementation
     template <typename S, typename I, typename F>
         requires (std::is_integral_v<I>
-            && !is_tag_invocable_v<bulk_fn, S&&, I, F&&>)
+            && !is_tag_invocable_v<bulk_fn, S&&, I, F&&>
+            && !is_tag_invocable_v<get_completion_scheduler_fn<set_value_t>, S const&>)
     auto operator () (S&& sender, I shape, F&& func) const
     {
         return bulk_impl::sender<std::decay_t<S>, std::decay_t<I>, std::decay_t<F>> {
@@ -207,8 +208,9 @@ inline constexpr struct bulk_fn
 
     template <typename S, typename I, typename F>
         requires (std::is_integral_v<I>
+            && !is_tag_invocable_v<get_completion_scheduler_fn<set_value_t>, S const&>
             && is_tag_invocable_v<bulk_fn, S&&, I, F&&>)
-    void operator () (S&& sender, I shape, F&& func) const
+    auto operator () (S&& sender, I shape, F&& func) const
     {
         return execution::tag_invoke(
             *this,
@@ -220,12 +222,17 @@ inline constexpr struct bulk_fn
     template <typename S, typename I, typename F>
         requires (std::is_integral_v<I>
             && is_tag_invocable_v<get_completion_scheduler_fn<set_value_t>, S const&>
-            && is_tag_invocable_v<bulk_fn, S&&, I, F&&>)
-    void operator () (S&& sender, I shape, F&& func) const
+            && is_tag_invocable_v<
+                bulk_fn,
+                decltype(get_completion_scheduler<set_value_t>(std::declval<S>())),
+                S&&,
+                I,
+                F&&>)
+    auto operator () (S&& sender, I shape, F&& func) const
     {
         return execution::tag_invoke(
             *this,
-            execution::get_completion_scheduler<set_value_t>(sender),
+            get_completion_scheduler<set_value_t>(sender),
             std::forward<S>(sender),
             shape,
             std::forward<F>(func));

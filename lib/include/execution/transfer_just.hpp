@@ -72,19 +72,7 @@ struct operation
 
     void set_value() noexcept
     {
-        try {
-            std::apply(
-                [this] (auto&& ... values) {
-                    execution::set_value(
-                        std::move(_receiver),
-                        std::move(values)...
-                    );
-                },
-                std::move(_values)
-            );
-        } catch(...) {
-            execution::set_error(std::move(_receiver), std::current_exception());
-        }
+        execution::apply_value(std::move(_receiver), std::move(_values));
     }
 
     template <typename E>
