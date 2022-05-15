@@ -32,6 +32,8 @@ inline constexpr struct set_value_fn
 
 } set_value;
 
+using set_value_t = set_value_fn;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename R, typename F, typename ... Ts>

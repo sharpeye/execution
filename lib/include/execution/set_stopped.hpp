@@ -27,4 +27,6 @@ inline constexpr struct set_stopped_fn
 
 } set_stopped;
 
+using set_stopped_t = set_stopped_fn;
+
 }   // namespace execution

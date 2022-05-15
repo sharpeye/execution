@@ -30,4 +30,6 @@ inline constexpr struct set_error_fn
 
 } set_error;
 
+using set_error_t = set_error_fn;
+
 }   // namespace execution
