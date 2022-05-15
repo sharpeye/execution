@@ -22,15 +22,21 @@ struct scheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct task
+struct task_base
 {
-    void* obj;
-    void (*execute)(void*);
-    void (*discard)(void*);
+    using execute_t = void (task_base::*)();
+
+    execute_t _execute;
+
+    void execute()
+    {
+        std::invoke(_execute, this);
+    }
 };
 
-struct timed_task: task
+struct timed_task
 {
+    task_base* task;
     time_point_t deadline;
 };
 
@@ -49,8 +55,8 @@ private:
 
     std::mutex _mtx;
     std::condition_variable _cv;
-    std::queue<task> _tasks;
-    std::queue<task> _urgent_tasks;
+    std::queue<task_base*> _tasks;
+    std::queue<task_base*> _urgent_tasks;
 
     std::mutex _timed_mtx;
     std::condition_variable _timed_cv;
@@ -60,127 +66,65 @@ public:
     explicit thread_pool(std::size_t thread_count);
     ~thread_pool();
 
-    template <typename F, typename ... Ts>
-    void enqueue(F&& fn, Ts&& ... args)
-    {
-        enqueue(create_task(
-            std::forward<F>(fn),
-            std::forward<Ts>(args)...
-        ));
-    }
-
-    template <typename F, typename ... Ts>
-    void enqueue(time_point_t deadline, F&& fn, Ts&& ... args)
-    {
-        enqueue(deadline, create_task(
-            std::forward<F>(fn),
-            std::forward<Ts>(args)...
-        ));
-    }
-
-    template <typename D, typename F, typename ... Ts>
-    void enqueue(D dt, F&& fn, Ts&& ... args)
-    {
-        const auto deadline = clock_t::now() + dt;
-
-        enqueue(deadline, create_task(
-            std::forward<F>(fn),
-            std::forward<Ts>(args)...
-        ));
-    }
-
     void shutdown();
-
     scheduler get_scheduler() noexcept;
 
-private:
-    template <typename F>
-        requires std::is_convertible_v<F, void (*)()>
-    task create_task(F&& fn)
+    void enqueue(task_base* t);
+    void enqueue(time_point_t deadline, task_base* t);
+    template <typename D>
+    void enqueue(D dt, task_base* t)
     {
-        static_assert(sizeof(void*) == sizeof(void (*)()));
-
-        auto p = static_cast<void (*)()>(std::forward<F>(fn));
-
-        return { .obj = reinterpret_cast<void*>(p) };
-    }
-
-    template <typename F>
-    task create_task(F&& fn)
-    {
-        using T = std::decay_t<F>;
-
-        return {
-            .obj = new T{std::forward<F>(fn)},
-            .execute = [] (void* obj) {
-                auto* f = static_cast<T*>(obj);
-                std::invoke(std::move(*f));
-                delete f;
-            },
-            .discard = [] (void* obj) {
-                auto* f = static_cast<T*>(obj);
-                delete f;
-            }
-        };
-    }
-
-    template <typename F, typename T, typename ... Ts>
-    void create_task(F&& fn, T&& arg0, Ts&& ... args)
-    {
-        return create_task([
-            fn = std::forward<F>(fn),
-            arg0 = std::forward<T>(arg0),
-            ...args = std::forward<Ts>(args)
-        ] () mutable {
-            std::invoke(std::move(fn), std::move(arg0), std::move(args)...);
-        });
+        enqueue(clock_t::now() + dt, t);
     }
 
 private:
-    void enqueue(task t);
-    void enqueue_urgent(task t);
-    void enqueue(time_point_t deadline, task t);
-
-    task dequeue();
+    void enqueue_urgent(task_base* t);
+    task_base* dequeue();
 
     void worker();
     void timed_worker();
-    void execute(task t);
-    void discard(task t);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+struct task_impl
+    : task_base
+{
+    task_impl()
+        : task_base{ static_cast<execute_t>(&T::execute) }
+    {}
+};
+
 template <typename R>
 struct operation_base
+    : task_impl<operation_base<R>>
 {
     thread_pool* _pool;
     R _receiver;
 
-    auto create_task()
+    void execute()
     {
-        return [this] () mutable {
-            if (execution::get_stop_token(_receiver).stop_requested()) {
-                execution::set_stopped(std::move(_receiver));
-            } else {
-                execution::set_value(std::move(_receiver));
-            }
-        };
+        if (execution::get_stop_token(_receiver).stop_requested()) {
+            execution::set_stopped(std::move(_receiver));
+        } else {
+            execution::set_value(std::move(_receiver));
+        }
     }
 
     void enqueue()
     {
-        _pool->enqueue(create_task());
+        _pool->enqueue(this);
     }
 
     void enqueue(std::chrono::milliseconds dt)
     {
-        _pool->enqueue(dt, create_task());
+        _pool->enqueue(dt, this);
     }
 
     void enqueue(time_point_t dl)
     {
-        _pool->enqueue(dl, create_task());
+        _pool->enqueue(dl, this);
     }
 };
 
@@ -224,7 +168,7 @@ struct sender
     template <typename R>
     auto connect(R&& receiver) const
     {
-        return operation<R>{{_pool, std::forward<R>(receiver)}};
+        return operation<R>{{{}, _pool, std::forward<R>(receiver)}};
     }
 };
 
@@ -236,7 +180,7 @@ struct sender_after
     template <typename R>
     auto connect(R&& receiver) const
     {
-        return operation_after<R>{{_pool, std::forward<R>(receiver)}, _dt};
+        return operation_after<R>{{{}, _pool, std::forward<R>(receiver)}, _dt};
     }
 };
 
@@ -248,7 +192,7 @@ struct sender_at
     template <typename R>
     auto connect(R&& receiver) const
     {
-        return operation_at<R>{{_pool, std::forward<R>(receiver)}, _dl};
+        return operation_at<R>{{{}, _pool, std::forward<R>(receiver)}, _dl};
     }
 };
 
@@ -263,9 +207,13 @@ struct scheduler
         return sender{_pool};
     }
 
-    auto schedule_after(std::chrono::milliseconds dt)
+    template <typename R, typename P>
+    auto schedule_after(std::chrono::duration<R, P> dt)
     {
-        return sender_after{_pool, dt};
+        return sender_after{
+            _pool,
+            std::chrono::duration_cast<std::chrono::milliseconds>(dt)
+        };
     }
 
     auto schedule_at(time_point_t dl)

@@ -2,7 +2,6 @@
 
 #include <cassert>
 
-
 namespace execution::simple_thread_pool_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,23 +35,23 @@ void thread_pool::shutdown()
         t.join();
     }
 
-    while (!_timed_queue.empty()) {
-        discard(_timed_queue.top());
-        _timed_queue.pop();
-    }
-
     while (!_urgent_tasks.empty()) {
-        discard(_urgent_tasks.front());
+        _urgent_tasks.front()->execute();
         _urgent_tasks.pop();
     }
 
     while (!_tasks.empty()) {
-        discard(_tasks.front());
+        _tasks.front()->execute();
         _tasks.pop();
+    }
+
+    while (!_timed_queue.empty()) {
+        _timed_queue.top().task->execute();
+        _timed_queue.pop();
     }
 }
 
-void thread_pool::enqueue(task t)
+void thread_pool::enqueue(task_base* t)
 {
     std::unique_lock lock {_mtx};
 
@@ -60,7 +59,7 @@ void thread_pool::enqueue(task t)
     _cv.notify_one();
 }
 
-void thread_pool::enqueue_urgent(task t)
+void thread_pool::enqueue_urgent(task_base* t)
 {
     std::unique_lock lock {_mtx};
 
@@ -68,7 +67,7 @@ void thread_pool::enqueue_urgent(task t)
     _cv.notify_one();
 }
 
-void thread_pool::enqueue(time_point_t deadline, task t)
+void thread_pool::enqueue(time_point_t deadline, task_base* t)
 {
     std::unique_lock lock {_timed_mtx};
 
@@ -76,7 +75,7 @@ void thread_pool::enqueue(time_point_t deadline, task t)
     _timed_cv.notify_all();
 }
 
-task thread_pool::dequeue()
+task_base* thread_pool::dequeue()
 {
     std::unique_lock lock {_mtx};
     _cv.wait(lock, [this] {
@@ -99,12 +98,12 @@ task thread_pool::dequeue()
 void thread_pool::worker()
 {
     for (;;) {
-        auto task = dequeue();
-        if (!task.obj) {
+        task_base* task = dequeue();
+        if (!task) {
             break;
         }
 
-        execute(task);
+        task->execute();
     }
 }
 
@@ -129,29 +128,9 @@ void thread_pool::timed_worker()
         auto now = clock_t::now();
 
         while (!_timed_queue.empty() && _timed_queue.top().deadline <= now) {
-            enqueue_urgent(_timed_queue.top());
+            enqueue_urgent(_timed_queue.top().task);
             _timed_queue.pop();
         }
-    }
-}
-
-void thread_pool::discard(task t)
-{
-    assert(t.obj);
-
-    if (t.discard) {
-        t.discard(t.obj);
-    }
-}
-
-void thread_pool::execute(task t)
-{
-    assert(t.obj);
-
-    if (!t.execute) {
-        std::invoke(reinterpret_cast<void(*)()>(t.obj));
-    } else {
-        t.execute(t.obj);
     }
 }
 
