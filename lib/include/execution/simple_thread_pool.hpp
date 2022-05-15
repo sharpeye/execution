@@ -202,6 +202,8 @@ struct scheduler
 {
     thread_pool* _pool;
 
+    constexpr bool operator == (scheduler const &) const noexcept = default;
+
     auto schedule() const noexcept
     {
         return sender{_pool};
