@@ -80,7 +80,7 @@ struct operation
     {
         // TODO: cancel callback
 
-        std::atomic_flag _error_or_stopped = ATOMIC_FLAG_INIT;
+        std::atomic_flag _error_or_stopped = {};
         std::atomic<I> _active_ops = {};
         std::atomic<I> _index = {};
 

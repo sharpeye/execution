@@ -1,6 +1,7 @@
 #pragma once
 
 #include "customization.hpp"
+#include "set_error.hpp"
 
 #include <exception>
 #include <functional>
@@ -63,14 +64,14 @@ constexpr auto apply_value(R&& receiver, T&& tuple) noexcept
         std::apply(
             [&receiver] (auto&& ... values) {
                 execution::set_value(
-                    std::move(receiver),
+                    std::forward<R>(receiver),
                     std::move(values)...
                 );
             },
-            std::move(tuple)
+            std::forward<T>(tuple)
         );
     } catch(...) {
-        execution::set_error(std::move(receiver), std::current_exception());
+        execution::set_error(std::forward<R>(receiver), std::current_exception());
     }
 }
 

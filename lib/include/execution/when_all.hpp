@@ -162,7 +162,7 @@ struct operation
     state_t _state;
     storage_t _storage;
 
-    std::atomic_flag _error_or_stopped = ATOMIC_FLAG_INIT;
+    std::atomic_flag _error_or_stopped = {};
     std::optional<variant_t<decltype(error_types)>> _error;
 
     template <typename Rx, typename S>
