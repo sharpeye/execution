@@ -76,15 +76,33 @@ struct operation
         return meta::atom<decayed_tuple_t<Ts...>>{};
     };
 
+    struct cancel_callback
+    {
+        std::atomic_flag* _flag;
+
+        void operator () () noexcept
+        {
+            _flag->test_and_set();
+        }
+    };
+
     struct bulk_state
     {
-        // TODO: cancel callback
-
         std::atomic_flag _error_or_stopped = {};
         std::atomic<I> _active_ops = {};
         std::atomic<I> _index = {};
 
         std::exception_ptr _error;
+
+        std::stop_callback<cancel_callback> _stop_callback;
+
+        bulk_state(I shape, auto token)
+            : _active_ops {shape}
+            , _stop_callback {
+                token,
+                cancel_callback{&_error_or_stopped}
+            }
+        {}
     };
 
     using state_t = std::variant<
@@ -134,10 +152,11 @@ struct operation
     void execute()
     {
         auto& state = std::get<bulk_state>(_state);
-        const I i = state._index.fetch_add(1);
 
         try {
             if (!state._error_or_stopped.test()) {
+                const I i = state._index.fetch_add(1);
+
                 std::apply(
                     [this, i] (auto&& ... values) {
                         std::invoke(_func, i, std::move(values)...);
@@ -183,8 +202,9 @@ struct operation
 
         _storage.template emplace<tuple_t>(std::forward<Ts>(values)...);
 
-        auto& state = _state.template emplace<bulk_state>();
-        state._active_ops = _shape;
+        auto& state = _state.template emplace<bulk_state>(
+            _shape,
+            execution::get_stop_token(_receiver));
 
         this->_execute = static_cast<task_base::execute_t>(
             &operation<R, S, I, F>::execute<tuple_t>);
