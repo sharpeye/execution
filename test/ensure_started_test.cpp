@@ -1,8 +1,9 @@
 #include <execution/ensure_started.hpp>
+
 #include <execution/just.hpp>
 #include <execution/schedule.hpp>
-#include <execution/simple_thread_pool.hpp>
 #include <execution/then.hpp>
+#include <execution/timed_thread_pool.hpp>
 #include <execution/upon_stopped.hpp>
 
 #include <execution/null_receiver.hpp>
@@ -49,7 +50,7 @@ TEST(ensure_started, traits)
 
 TEST(ensure_started, test)
 {
-    simple_thread_pool pool{1};
+    timed_thread_pool pool {1};
     auto sched = pool.get_scheduler();
 
     std::promise<void> promise;
@@ -68,7 +69,7 @@ TEST(ensure_started, test)
 
 TEST(ensure_started, discard)
 {
-    simple_thread_pool pool{1};
+    timed_thread_pool pool {1};
     auto sched = pool.get_scheduler();
 
     std::promise<int> promise;
@@ -83,7 +84,7 @@ TEST(ensure_started, discard)
 
 TEST(ensure_started, stopped)
 {
-    simple_thread_pool pool{1};
+    timed_thread_pool pool {1};
     auto sched = pool.get_scheduler();
 
     std::promise<int> promise;

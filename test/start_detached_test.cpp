@@ -3,7 +3,7 @@
 #include <execution/just.hpp>
 #include <execution/let_value.hpp>
 #include <execution/schedule.hpp>
-#include <execution/simple_thread_pool.hpp>
+#include <execution/thread_pool.hpp>
 #include <execution/then.hpp>
 
 #include <gtest/gtest.h>
@@ -17,7 +17,7 @@ using namespace execution;
 
 TEST(start_detached, test)
 {
-    simple_thread_pool pool{1};
+    thread_pool pool {1};
     auto sched = pool.get_scheduler();
 
     std::promise<void> signal;

@@ -1,9 +1,9 @@
 #include <execution/transfer_just.hpp>
 
 #include <execution/null_receiver.hpp>
-#include <execution/simple_thread_pool.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
+#include <execution/thread_pool.hpp>
 
 #include <gtest/gtest.h>
 
@@ -16,7 +16,7 @@ using namespace execution;
 
 TEST(transfer_just, traits)
 {
-    simple_thread_pool pool{1};
+    thread_pool pool {1};
 
     auto sched = pool.get_scheduler();
 
@@ -50,7 +50,7 @@ TEST(transfer_just, traits)
 
 TEST(transfer_just, test)
 {
-    simple_thread_pool pool{1};
+    thread_pool pool {1};
 
     auto sched = pool.get_scheduler();
     auto const main_tid = std::this_thread::get_id();

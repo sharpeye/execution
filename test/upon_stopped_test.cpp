@@ -3,9 +3,9 @@
 #include <execution/just.hpp>
 #include <execution/null_receiver.hpp>
 #include <execution/schedule.hpp>
-#include <execution/simple_thread_pool.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
+#include <execution/thread_pool.hpp>
 
 #include <gtest/gtest.h>
 
@@ -52,7 +52,7 @@ TEST(upon_stopped, test)
     }
 
     {
-        simple_thread_pool pool{1};
+        thread_pool pool {1};
         auto sched = pool.get_scheduler();
 
         std::stop_source ss;

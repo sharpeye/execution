@@ -1,8 +1,8 @@
 #pragma once
 
-#include <execution/simple_thread_pool.hpp>
 #include "bulk.hpp"
 #include "sender_traits.hpp"
+#include "task_queue.hpp"
 #include "tuple.hpp"
 #include "variant.hpp"
 
@@ -10,22 +10,14 @@
 #include <functional>
 
 namespace execution {
-namespace simple_thread_pool_impl {
-
-struct thread_pool;
-struct task_base;
-
-namespace bulk_impl {
-
-template <typename R, typename S, typename I, typename F>
-struct operation;
+namespace thread_pool_bulk_impl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename R, typename S, typename I, typename F>
+template <typename T, typename R>
 struct source_receiver
 {
-    operation<R, S, I, F>* _op;
+    T* _op;
 
     template <typename ... Ts>
     void set_value(Ts&& ... values)
@@ -45,7 +37,7 @@ struct source_receiver
     }
 
     template <typename Tag, typename ... Ts>
-    friend auto tag_invoke(Tag tag, source_receiver<R, S, I, F> const& self, Ts&& ... args)
+    friend auto tag_invoke(Tag tag, source_receiver<T, R> const& self, Ts&& ... args)
         noexcept(is_nothrow_tag_invocable_v<Tag, R, Ts...>)
         -> tag_invoke_result_t<Tag, R, Ts...>
     {
@@ -55,11 +47,11 @@ struct source_receiver
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename R, typename S, typename I, typename F>
+template <typename P, typename R, typename S, typename I, typename F>
 struct operation
     : task_base
 {
-    using source_receiver_t = source_receiver<R, S, I, F>;
+    using source_receiver_t = source_receiver<operation, R>;
 
     static constexpr auto source_type = meta::atom<S>{};
     static constexpr auto source_receiver_type = meta::atom<source_receiver_t>{};
@@ -117,7 +109,7 @@ struct operation
         | meta::transform(source_value_types, as_tuple)
     )>;
 
-    thread_pool* _pool;
+    P* _pool;
     R _receiver;
     I _shape;
     F _func;
@@ -126,7 +118,7 @@ struct operation
     storage_t _storage;
 
     template <typename T, typename X, typename U>
-    operation(T&& receiver, thread_pool* pool, X&& source, I shape, U&& func)
+    operation(T&& receiver, P* pool, X&& source, I shape, U&& func)
         : task_base {nullptr}
         , _pool {pool}
         , _receiver {std::forward<T>(receiver)}
@@ -207,10 +199,10 @@ struct operation
             execution::get_stop_token(_receiver));
 
         this->_execute = static_cast<task_base::execute_t>(
-            &operation<R, S, I, F>::execute<tuple_t>);
+            &operation::execute<tuple_t>);
 
         for (I i = {}; i != _shape; ++i) {
-            _pool->enqueue(this);
+            _pool->schedule(this);
         }
     }
 
@@ -228,16 +220,16 @@ struct operation
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename S, typename I, typename F>
+template <typename P, typename S, typename I, typename F>
 struct sender
 {
-    thread_pool* _pool;
+    P* _pool;
     S _source;
     I _shape;
     F _func;
 
     template <typename R>
-    operation<R, S, I, F> connect(R&& receiver) &
+    operation<P, R, S, I, F> connect(R&& receiver) &
     {
         return {
             std::forward<R>(receiver),
@@ -249,7 +241,7 @@ struct sender
     }
 
     template <typename R>
-    operation<R, S, I, F> connect(R&& receiver) &&
+    operation<P, R, S, I, F> connect(R&& receiver) &&
     {
         return {
             std::forward<R>(receiver),
@@ -263,11 +255,11 @@ struct sender
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename S, typename I, typename F, typename R>
+template <typename P, typename S, typename I, typename F, typename R>
 struct sender_traits
 {
-    using operation_t = operation<R, S, I, F>;
-    using source_receiver_t = source_receiver<R, S, I, F>;
+    using operation_t = operation<P, R, S, I, F>;
+    using source_receiver_t = source_receiver<operation_t, R>;
 
     static constexpr auto source_type = meta::atom<S>{};
     static constexpr auto source_receiver_type = meta::atom<source_receiver_t>{};
@@ -281,15 +273,13 @@ struct sender_traits
         ::values_t;
 };
 
-}   // namespace bulk_impl
-
-}   // namespace simple_thread_pool_impl
+}   // namespace thread_pool_bulk_impl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename S, typename I, typename F, typename R>
-struct sender_traits<simple_thread_pool_impl::bulk_impl::sender<S, I, F>, R>
-    : simple_thread_pool_impl::bulk_impl::sender_traits<S, I, F, R>
+template <typename T, typename S, typename I, typename F, typename R>
+struct sender_traits<thread_pool_bulk_impl::sender<T, S, I, F>, R>
+    : thread_pool_bulk_impl::sender_traits<T, S, I, F, R>
 {};
 
 ////////////////////////////////////////////////////////////////////////////////

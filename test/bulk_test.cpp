@@ -3,7 +3,7 @@
 #include <execution/just.hpp>
 #include <execution/null_receiver.hpp>
 #include <execution/schedule.hpp>
-#include <execution/simple_thread_pool.hpp>
+#include <execution/thread_pool.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/transfer_just.hpp>
 
@@ -74,7 +74,7 @@ TEST(bulk, default_impl)
 
 TEST(bulk, threads)
 {
-    simple_thread_pool pool{2};
+    thread_pool pool {2};
 
     auto sched = pool.get_scheduler();
 

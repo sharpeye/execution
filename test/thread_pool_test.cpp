@@ -1,4 +1,5 @@
-#include <execution/simple_thread_pool.hpp>
+#include <execution/thread_pool.hpp>
+#include <execution/timed_thread_pool.hpp>
 
 #include <execution/schedule.hpp>
 #include <execution/start_detached.hpp>
@@ -16,9 +17,9 @@ using namespace execution;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(simple_thread_pool, simple)
+TEST(thread_pool, simple)
 {
-    simple_thread_pool pool{1};
+    thread_pool pool {1};
 
     auto sched = pool.get_scheduler();
 
@@ -29,11 +30,11 @@ TEST(simple_thread_pool, simple)
     EXPECT_EQ(42, r);
 }
 
-TEST(simple_thread_pool, timed)
+TEST(timed_thread_pool, timed)
 {
-    simple_thread_pool pool{2};
+    timed_thread_pool pool {2};
 
-    std::atomic<int> count { 2 };
+    std::atomic<int> count {2};
 
     auto sched = pool.get_scheduler();
 

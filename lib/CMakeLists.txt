@@ -12,5 +12,6 @@ target_include_directories(execution PUBLIC include)
 
 target_sources(execution
     PRIVATE
-    source/simple_thread_pool.cpp
+    source/thread_pool.cpp
+    source/timed_thread_pool.cpp
 )

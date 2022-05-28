@@ -2,8 +2,8 @@
 
 #include <execution/just.hpp>
 #include <execution/schedule.hpp>
-#include <execution/simple_thread_pool.hpp>
 #include <execution/then.hpp>
+#include <execution/timed_thread_pool.hpp>
 
 #include <gtest/gtest.h>
 
@@ -96,7 +96,7 @@ TEST(sync_wait, test)
 
 TEST(sync_wait, cancellation)
 {
-    simple_thread_pool pool{1};
+    timed_thread_pool pool {1};
 
     auto sched = pool.get_scheduler();
 

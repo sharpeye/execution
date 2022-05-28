@@ -3,9 +3,9 @@
 #include <execution/just.hpp>
 #include <execution/null_receiver.hpp>
 #include <execution/schedule.hpp>
-#include <execution/simple_thread_pool.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
+#include <execution/timed_thread_pool.hpp>
 
 #include <gtest/gtest.h>
 
@@ -91,7 +91,7 @@ TEST(when_all, no_value)
 
 TEST(when_all, thread_pool)
 {
-    simple_thread_pool pool{3};
+    timed_thread_pool pool {3};
 
     auto sched = pool.get_scheduler();
 
