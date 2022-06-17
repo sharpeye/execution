@@ -1,4 +1,10 @@
 file(GLOB test-sources "*_test.cpp")
+
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    file(GLOB linux-test-sources "linux/*_test.cpp")
+    list(APPEND test-sources ${linux-test-sources})
+endif()
+
 foreach(file-path ${test-sources})
     string( REPLACE ".cpp" "" file-path-without-ext ${file-path} )
     get_filename_component(file-name ${file-path-without-ext} NAME)

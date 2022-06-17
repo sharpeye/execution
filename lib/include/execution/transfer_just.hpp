@@ -1,7 +1,8 @@
 #pragma once
 
-#include "sender_traits.hpp"
 #include "get_completion_scheduler.hpp"
+#include "get_scheduler.hpp"
+#include "sender_traits.hpp"
 
 #include <optional>
 #include <tuple>

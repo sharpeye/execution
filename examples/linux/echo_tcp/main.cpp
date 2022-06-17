@@ -2,14 +2,15 @@
 #include <execution/finally.hpp>
 #include <execution/just.hpp>
 #include <execution/let_value.hpp>
+#include <execution/op.hpp>
 #include <execution/repeat_effect_until.hpp>
 #include <execution/sequence.hpp>
 #include <execution/start_detached.hpp>
 #include <execution/sync_wait.hpp>
 #include <execution/then.hpp>
+#include <execution/thread_pool.hpp>
 #include <execution/upon_error.hpp>
-
-#include <uring/uring.hpp>
+#include <execution/linux/io_uring.hpp>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -23,18 +24,19 @@
 #include <system_error>
 
 using namespace execution;
+namespace io = execution::io_uring;
 
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string to_string(sockaddr_in const& peer)
+/*std::string to_string(sockaddr_in const& peer)
 {
     char addr[INET_ADDRSTRLEN] {};
     inet_ntop(AF_INET, &peer.sin_addr, addr, sizeof(addr));
 
     return std::string{addr} + ":" + std::to_string(peer.sin_port);
-}
+}*/
 
 std::string to_string(sockaddr_in6 const& peer)
 {
@@ -95,24 +97,24 @@ struct connection
     std::array<std::byte, 64 * 1024> _buffer;
     bool _done = false;
 
-    auto process(uring::context& ctx)
+    auto process(io::context& ctx)
     {
         static constexpr auto prefix = std::span{ ">> ", 3 };
         static constexpr auto bye = std::span{ "bye", 3 };
 
-        return uring::read_some(ctx, _fd, _buffer)
+        return io::read_some(ctx, _fd, _buffer)
             | let_value([&ctx, this] (std::span<std::byte> buf) {
                 _done = buf.empty();
                 return conditional([this] { return _done; },
-                    uring::write(ctx, _fd, as_bytes(bye)),
+                    io::write(ctx, _fd, as_bytes(bye)),
                     sequence(
-                        uring::write(ctx, _fd, as_bytes(prefix)),
-                        uring::write(ctx, _fd, buf)
+                        io::write(ctx, _fd, as_bytes(prefix)),
+                        io::write(ctx, _fd, buf)
                     ));
             })
             | repeat_effect_until([this] { return _done; })
             | upon_error([] (auto error) { print_error(error); })
-            | finally(uring::close(ctx, _fd));
+            | finally(io::close(ctx, _fd));
     }
 };
 
@@ -135,30 +137,35 @@ int main(int argc, char** argv)
 
         int const s = bind_and_listen(port);
 
-        std::clog << "listening on port " << port << " ..." << '\n';
+        std::clog << "listening port " << port << " ..." << '\n';
 
-        uring::context ctx;
-        ctx.start(1024);
+        io::context ctx;
 
-        uring::accept(ctx, s)
-            | then([&] (int s, auto const& peer) {
+        std::thread loop {[&] {
+            ctx.run();
+        }};
+
+        on(ctx.get_scheduler(), io::accept(ctx, s)
+            | then([&] (int s, sockaddr_in6 const& peer) {
                 std::clog << "new connection: " << to_string(peer) << '\n';
 
-                start_detached(just(connection{s})
+                start_detached(just(connection {s})
                     | let_value([&] (connection& conn) {
                         return conn.process(ctx);
                     })
-                    | then([=] {
+                    | finally(just(peer) | then([] (sockaddr_in6 const& peer) {
                         std::clog << "done with " << to_string(peer) << '\n';
-                    })
+                    }))
                 );
               })
             | repeat_effect()
             | upon_error([] (auto error) { print_error(error); })
-            | finally(uring::close(ctx, s))
+            | finally(io::close(ctx, s) | then([&] {
+                ctx.shutdown();
+            })))
             | this_thread::sync_wait(stop_source);
 
-        ctx.stop();
+        loop.join();
     }
     catch (...) {
         print_error(std::current_exception());
